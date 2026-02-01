@@ -1,0 +1,10 @@
+// CMQC Module Map
+// Provides Swift interop with IBM MQ C Client library
+// Requires IBM MQ Client installed at /opt/mqm
+// Install: brew tap ibm-messaging/ibmmq && brew install --cask ibm-messaging/ibmmq/ibmmq
+
+module CMQC {
+    header "/opt/mqm/inc/cmqc.h"
+    link "mqic_r"
+    export *
+}
