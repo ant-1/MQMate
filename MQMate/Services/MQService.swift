@@ -51,6 +51,12 @@ public protocol MQServiceProtocol {
 
     /// Disconnect from the current queue manager
     func disconnect()
+
+    /// Get information about a specific queue
+    func getQueueInfo(queueName: String) throws -> MQService.QueueInfo
+
+    /// List all queues in the connected queue manager
+    func listQueues(filter: String) async throws -> [MQService.QueueInfo]
 }
 
 // MARK: - MQ Service Implementation
@@ -294,6 +300,564 @@ public final class MQService: MQServiceProtocol {
             throw MQError.notConnected
         }
         return connectionHandle
+    }
+
+    // MARK: - Queue Operations
+
+    /// Queue information returned from MQINQ operations
+    public struct QueueInfo: Identifiable, Sendable {
+        public let id: String
+        public let name: String
+        public let queueType: MQQueueType
+        public let currentDepth: Int32
+        public let maxDepth: Int32
+        public let openInputCount: Int32
+        public let openOutputCount: Int32
+        public let inhibitGet: Bool
+        public let inhibitPut: Bool
+
+        public init(
+            name: String,
+            queueType: MQQueueType = .unknown,
+            currentDepth: Int32 = 0,
+            maxDepth: Int32 = 0,
+            openInputCount: Int32 = 0,
+            openOutputCount: Int32 = 0,
+            inhibitGet: Bool = false,
+            inhibitPut: Bool = false
+        ) {
+            self.id = name
+            self.name = name
+            self.queueType = queueType
+            self.currentDepth = currentDepth
+            self.maxDepth = maxDepth
+            self.openInputCount = openInputCount
+            self.openOutputCount = openOutputCount
+            self.inhibitGet = inhibitGet
+            self.inhibitPut = inhibitPut
+        }
+    }
+
+    /// Open a queue for the specified operations
+    /// - Parameters:
+    ///   - queueName: Name of the queue to open
+    ///   - options: MQOO_* options for opening the queue
+    /// - Returns: Object handle for the opened queue
+    /// - Throws: MQError if the queue cannot be opened
+    private func openQueue(queueName: String, options: MQLONG) throws -> MQHOBJ {
+        guard isConnected else {
+            throw MQError.notConnected
+        }
+
+        var compCode: MQLONG = MQCC_OK
+        var reason: MQLONG = MQRC_NONE
+        var objectHandle: MQHOBJ = MQHO_UNUSABLE_HOBJ
+
+        // Initialize Object Descriptor (MQOD)
+        var objectDescriptor = MQOD()
+        objectDescriptor.Version = MQOD_VERSION_4
+
+        // Set object type to queue
+        objectDescriptor.ObjectType = MQOT_Q
+
+        // Set queue name (max 48 characters, space-padded)
+        let queueNameChars = queueName.toMQCharArray(length: Int(MQ_Q_NAME_LENGTH))
+        withUnsafeMutablePointer(to: &objectDescriptor.ObjectName) { ptr in
+            let bound = ptr.withMemoryRebound(to: MQCHAR.self, capacity: Int(MQ_Q_NAME_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_Q_NAME_LENGTH) {
+                bound[i] = queueNameChars[i]
+            }
+        }
+
+        // Call MQOPEN
+        MQOPEN(
+            connectionHandle,
+            &objectDescriptor,
+            options,
+            &objectHandle,
+            &compCode,
+            &reason
+        )
+
+        guard compCode != MQCC_FAILED else {
+            throw MQError.operationFailed(
+                operation: "MQOPEN(\(queueName))",
+                completionCode: compCode,
+                reason: reason
+            )
+        }
+
+        return objectHandle
+    }
+
+    /// Close an open queue
+    /// - Parameter objectHandle: Handle returned from openQueue
+    private func closeQueue(_ objectHandle: inout MQHOBJ) {
+        guard objectHandle != MQHO_UNUSABLE_HOBJ else { return }
+
+        var compCode: MQLONG = MQCC_OK
+        var reason: MQLONG = MQRC_NONE
+
+        MQCLOSE(
+            connectionHandle,
+            &objectHandle,
+            MQCO_NONE,
+            &compCode,
+            &reason
+        )
+
+        objectHandle = MQHO_UNUSABLE_HOBJ
+    }
+
+    /// Inquire queue attributes using MQINQ
+    /// - Parameters:
+    ///   - objectHandle: Handle to an open queue
+    ///   - queueName: Name of the queue (for constructing QueueInfo)
+    /// - Returns: QueueInfo with the queue's attributes
+    /// - Throws: MQError if inquiry fails
+    private func inquireQueueAttributes(objectHandle: MQHOBJ, queueName: String) throws -> QueueInfo {
+        var compCode: MQLONG = MQCC_OK
+        var reason: MQLONG = MQRC_NONE
+
+        // Selectors for integer attributes we want to inquire
+        var selectors: [MQLONG] = [
+            MQIA_Q_TYPE,
+            MQIA_CURRENT_Q_DEPTH,
+            MQIA_MAX_Q_DEPTH,
+            MQIA_OPEN_INPUT_COUNT,
+            MQIA_OPEN_OUTPUT_COUNT,
+            MQIA_INHIBIT_GET,
+            MQIA_INHIBIT_PUT
+        ]
+
+        // Buffer for integer attribute values
+        var intAttrs = [MQLONG](repeating: 0, count: selectors.count)
+
+        // No character attributes in this query
+        let charAttrLength: MQLONG = 0
+        var charAttrs = [MQCHAR]()
+
+        MQINQ(
+            connectionHandle,
+            objectHandle,
+            MQLONG(selectors.count),
+            &selectors,
+            MQLONG(intAttrs.count),
+            &intAttrs,
+            charAttrLength,
+            &charAttrs,
+            &compCode,
+            &reason
+        )
+
+        guard compCode != MQCC_FAILED else {
+            throw MQError.operationFailed(
+                operation: "MQINQ(\(queueName))",
+                completionCode: compCode,
+                reason: reason
+            )
+        }
+
+        // Parse the results
+        let queueType = MQQueueType(rawValue: intAttrs[0])
+        let currentDepth = intAttrs[1]
+        let maxDepth = intAttrs[2]
+        let openInputCount = intAttrs[3]
+        let openOutputCount = intAttrs[4]
+        let inhibitGet = intAttrs[5] == MQQA_GET_INHIBITED
+        let inhibitPut = intAttrs[6] == MQQA_PUT_INHIBITED
+
+        return QueueInfo(
+            name: queueName,
+            queueType: queueType,
+            currentDepth: currentDepth,
+            maxDepth: maxDepth,
+            openInputCount: openInputCount,
+            openOutputCount: openOutputCount,
+            inhibitGet: inhibitGet,
+            inhibitPut: inhibitPut
+        )
+    }
+
+    /// Get information about a specific queue
+    /// - Parameter queueName: Name of the queue to inquire
+    /// - Returns: QueueInfo with the queue's attributes
+    /// - Throws: MQError if the queue cannot be accessed
+    public func getQueueInfo(queueName: String) throws -> QueueInfo {
+        guard isConnected else {
+            throw MQError.notConnected
+        }
+
+        // Open queue for inquiry
+        var objectHandle = try openQueue(
+            queueName: queueName,
+            options: MQOO_INQUIRE | MQOO_FAIL_IF_QUIESCING
+        )
+
+        defer {
+            closeQueue(&objectHandle)
+        }
+
+        // Inquire attributes
+        return try inquireQueueAttributes(objectHandle: objectHandle, queueName: queueName)
+    }
+
+    /// List all queues in the connected queue manager
+    /// Uses PCF (Programmable Command Format) to discover queue names
+    /// - Parameter filter: Optional filter pattern (e.g., "DEV.*" or "*"). Defaults to "*"
+    /// - Returns: Array of QueueInfo for all discovered queues
+    /// - Throws: MQError if listing fails
+    public func listQueues(filter: String = "*") async throws -> [QueueInfo] {
+        guard isConnected else {
+            throw MQError.notConnected
+        }
+
+        // Build and send PCF inquiry command to discover queue names
+        let queueNames = try sendPCFInquireQueue(filter: filter)
+
+        // Get detailed info for each discovered queue
+        var queues: [QueueInfo] = []
+        for name in queueNames {
+            do {
+                let info = try getQueueInfo(queueName: name)
+                queues.append(info)
+            } catch {
+                // Skip queues we can't access (e.g., authorization issues)
+                // but continue with others
+                continue
+            }
+        }
+
+        return queues.sorted { $0.name < $1.name }
+    }
+
+    /// Send a PCF MQCMD_INQUIRE_Q command to discover queue names
+    /// - Parameter filter: Filter pattern for queue names
+    /// - Returns: Array of queue names matching the filter
+    /// - Throws: MQError if the PCF command fails
+    private func sendPCFInquireQueue(filter: String) throws -> [String] {
+        var compCode: MQLONG = MQCC_OK
+        var reason: MQLONG = MQRC_NONE
+
+        // Open the command queue for sending PCF commands
+        var adminObjectHandle = try openQueue(
+            queueName: "SYSTEM.ADMIN.COMMAND.QUEUE",
+            options: MQOO_OUTPUT | MQOO_FAIL_IF_QUIESCING
+        )
+
+        defer {
+            closeQueue(&adminObjectHandle)
+        }
+
+        // Generate a unique reply queue name
+        let replyQueueModel = "SYSTEM.DEFAULT.MODEL.QUEUE"
+        let replyQueuePrefix = "MQMATE.REPLY.*"
+
+        // Open a dynamic reply queue
+        var replyObjectDescriptor = MQOD()
+        replyObjectDescriptor.Version = MQOD_VERSION_4
+        replyObjectDescriptor.ObjectType = MQOT_Q
+
+        // Set model queue name
+        let modelQueueChars = replyQueueModel.toMQCharArray(length: Int(MQ_Q_NAME_LENGTH))
+        withUnsafeMutablePointer(to: &replyObjectDescriptor.ObjectName) { ptr in
+            let bound = ptr.withMemoryRebound(to: MQCHAR.self, capacity: Int(MQ_Q_NAME_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_Q_NAME_LENGTH) {
+                bound[i] = modelQueueChars[i]
+            }
+        }
+
+        // Set dynamic queue name prefix
+        let dynamicQueueChars = replyQueuePrefix.toMQCharArray(length: Int(MQ_Q_NAME_LENGTH))
+        withUnsafeMutablePointer(to: &replyObjectDescriptor.DynamicQName) { ptr in
+            let bound = ptr.withMemoryRebound(to: MQCHAR.self, capacity: Int(MQ_Q_NAME_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_Q_NAME_LENGTH) {
+                bound[i] = dynamicQueueChars[i]
+            }
+        }
+
+        var replyObjectHandle: MQHOBJ = MQHO_UNUSABLE_HOBJ
+        MQOPEN(
+            connectionHandle,
+            &replyObjectDescriptor,
+            MQOO_INPUT_EXCLUSIVE | MQOO_FAIL_IF_QUIESCING,
+            &replyObjectHandle,
+            &compCode,
+            &reason
+        )
+
+        guard compCode != MQCC_FAILED else {
+            throw MQError.operationFailed(
+                operation: "MQOPEN(reply queue)",
+                completionCode: compCode,
+                reason: reason
+            )
+        }
+
+        defer {
+            var handle = replyObjectHandle
+            closeQueue(&handle)
+        }
+
+        // Extract the actual dynamic queue name
+        var replyQueueName = [MQCHAR](repeating: 0x20, count: Int(MQ_Q_NAME_LENGTH))
+        withUnsafePointer(to: &replyObjectDescriptor.ObjectName) { ptr in
+            let bound = ptr.withMemoryRebound(to: MQCHAR.self, capacity: Int(MQ_Q_NAME_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_Q_NAME_LENGTH) {
+                replyQueueName[i] = bound[i]
+            }
+        }
+
+        // Build PCF message for MQCMD_INQUIRE_Q
+        let pcfMessage = try buildPCFInquireQueueMessage(
+            filter: filter,
+            replyQueueName: replyQueueName
+        )
+
+        // Send the PCF command
+        try sendPCFMessage(
+            objectHandle: adminObjectHandle,
+            message: pcfMessage,
+            replyQueueName: replyQueueName
+        )
+
+        // Receive and parse the response(s)
+        return try receivePCFResponse(replyObjectHandle: replyObjectHandle)
+    }
+
+    /// Build a PCF MQCMD_INQUIRE_Q message
+    private func buildPCFInquireQueueMessage(
+        filter: String,
+        replyQueueName: [MQCHAR]
+    ) throws -> Data {
+        // PCF Header structure
+        var pcfHeader = MQCFH()
+        pcfHeader.Type = MQCFT_COMMAND
+        pcfHeader.StrucLength = MQCFH_STRUC_LENGTH
+        pcfHeader.Version = MQCFH_VERSION_1
+        pcfHeader.Command = MQCMD_INQUIRE_Q
+        pcfHeader.MsgSeqNumber = 1
+        pcfHeader.Control = MQCFC_LAST
+        pcfHeader.ParameterCount = 2 // Queue name filter + queue type
+
+        var message = Data()
+
+        // Append header
+        withUnsafeBytes(of: &pcfHeader) { buffer in
+            message.append(contentsOf: buffer)
+        }
+
+        // Add MQCACF_Q_NAME parameter (string parameter for queue name filter)
+        var qNameParam = MQCFST()
+        qNameParam.Type = MQCFT_STRING
+        qNameParam.StrucLength = MQCFST_STRUC_LENGTH_FIXED + Int32(MQ_Q_NAME_LENGTH)
+        qNameParam.Parameter = MQCA_Q_NAME
+        qNameParam.CodedCharSetId = MQCCSI_DEFAULT
+        qNameParam.StringLength = Int32(MQ_Q_NAME_LENGTH)
+
+        withUnsafeBytes(of: &qNameParam) { buffer in
+            // Only append up to the String field (before the actual string data)
+            message.append(contentsOf: buffer.prefix(MemoryLayout<MQCFST>.size - MemoryLayout<MQCHAR>.size))
+        }
+
+        // Append the filter string (space-padded to 48 chars)
+        let filterChars = filter.toMQCharArray(length: Int(MQ_Q_NAME_LENGTH))
+        message.append(contentsOf: filterChars.map { UInt8(bitPattern: $0) })
+
+        // Add MQIA_Q_TYPE parameter (integer parameter requesting all queue types)
+        var qTypeParam = MQCFIN()
+        qTypeParam.Type = MQCFT_INTEGER
+        qTypeParam.StrucLength = MQCFIN_STRUC_LENGTH
+        qTypeParam.Parameter = MQIA_Q_TYPE
+        qTypeParam.Value = MQQT_ALL
+
+        withUnsafeBytes(of: &qTypeParam) { buffer in
+            message.append(contentsOf: buffer)
+        }
+
+        return message
+    }
+
+    /// Send a PCF message to the admin queue
+    private func sendPCFMessage(
+        objectHandle: MQHOBJ,
+        message: Data,
+        replyQueueName: [MQCHAR]
+    ) throws {
+        var compCode: MQLONG = MQCC_OK
+        var reason: MQLONG = MQRC_NONE
+
+        // Message descriptor
+        var messageDescriptor = MQMD()
+        messageDescriptor.Version = MQMD_VERSION_2
+        messageDescriptor.Format = (
+            MQCHAR(0x4D), MQCHAR(0x51), MQCHAR(0x48), MQCHAR(0x52),
+            MQCHAR(0x46), MQCHAR(0x32), MQCHAR(0x20), MQCHAR(0x20)
+        )  // "MQHRF2  "
+        messageDescriptor.MsgType = MQMT_REQUEST
+        messageDescriptor.Expiry = 300 * 10 // 5 minutes in tenths of a second
+
+        // Set reply-to queue name
+        withUnsafeMutablePointer(to: &messageDescriptor.ReplyToQ) { ptr in
+            let bound = ptr.withMemoryRebound(to: MQCHAR.self, capacity: Int(MQ_Q_NAME_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_Q_NAME_LENGTH) {
+                bound[i] = replyQueueName[i]
+            }
+        }
+
+        // Put message options
+        var putOptions = MQPMO()
+        putOptions.Version = MQPMO_VERSION_2
+        putOptions.Options = MQPMO_NO_SYNCPOINT | MQPMO_NEW_MSG_ID | MQPMO_NEW_CORREL_ID
+
+        // Put the message
+        var messageData = [UInt8](message)
+        var messageLength = MQLONG(messageData.count)
+
+        MQPUT(
+            connectionHandle,
+            objectHandle,
+            &messageDescriptor,
+            &putOptions,
+            messageLength,
+            &messageData,
+            &compCode,
+            &reason
+        )
+
+        guard compCode != MQCC_FAILED else {
+            throw MQError.operationFailed(
+                operation: "MQPUT(PCF command)",
+                completionCode: compCode,
+                reason: reason
+            )
+        }
+    }
+
+    /// Receive and parse PCF response messages
+    private func receivePCFResponse(replyObjectHandle: MQHOBJ) throws -> [String] {
+        var queueNames: [String] = []
+        var hasMoreMessages = true
+        var compCode: MQLONG = MQCC_OK
+        var reason: MQLONG = MQRC_NONE
+
+        while hasMoreMessages {
+            // Message descriptor
+            var messageDescriptor = MQMD()
+            messageDescriptor.Version = MQMD_VERSION_2
+
+            // Get message options
+            var getOptions = MQGMO()
+            getOptions.Version = MQGMO_VERSION_2
+            getOptions.Options = MQGMO_NO_SYNCPOINT | MQGMO_WAIT | MQGMO_CONVERT
+            getOptions.WaitInterval = 5000 // 5 second timeout
+            getOptions.MatchOptions = MQMO_NONE
+
+            // Buffer for response
+            var buffer = [UInt8](repeating: 0, count: 65536)
+            var dataLength: MQLONG = 0
+
+            MQGET(
+                connectionHandle,
+                replyObjectHandle,
+                &messageDescriptor,
+                &getOptions,
+                MQLONG(buffer.count),
+                &buffer,
+                &dataLength,
+                &compCode,
+                &reason
+            )
+
+            if reason == MQRC_NO_MSG_AVAILABLE {
+                hasMoreMessages = false
+                break
+            }
+
+            guard compCode != MQCC_FAILED else {
+                if reason == MQRC_NO_MSG_AVAILABLE {
+                    break
+                }
+                throw MQError.operationFailed(
+                    operation: "MQGET(PCF response)",
+                    completionCode: compCode,
+                    reason: reason
+                )
+            }
+
+            // Parse the PCF response to extract queue names
+            let responseData = Data(buffer.prefix(Int(dataLength)))
+            let names = parsePCFQueueResponse(data: responseData)
+            queueNames.append(contentsOf: names)
+
+            // Check if this is the last message in the response
+            if responseData.count >= MemoryLayout<MQCFH>.size {
+                let control: Int32 = responseData.withUnsafeBytes { ptr in
+                    // Control field is at offset 20 in MQCFH
+                    ptr.load(fromByteOffset: 20, as: Int32.self)
+                }
+                if control == MQCFC_LAST {
+                    hasMoreMessages = false
+                }
+            }
+        }
+
+        return queueNames
+    }
+
+    /// Parse a PCF response message to extract queue names
+    private func parsePCFQueueResponse(data: Data) -> [String] {
+        var names: [String] = []
+        var offset = 0
+
+        guard data.count >= MemoryLayout<MQCFH>.size else {
+            return names
+        }
+
+        // Read PCF header
+        let headerSize = Int(MemoryLayout<MQCFH>.size)
+        offset = headerSize
+
+        // Parse parameters
+        while offset + 12 < data.count {
+            let paramType: Int32 = data.withUnsafeBytes { ptr in
+                ptr.load(fromByteOffset: offset, as: Int32.self)
+            }
+            let strucLength: Int32 = data.withUnsafeBytes { ptr in
+                ptr.load(fromByteOffset: offset + 4, as: Int32.self)
+            }
+            let parameter: Int32 = data.withUnsafeBytes { ptr in
+                ptr.load(fromByteOffset: offset + 8, as: Int32.self)
+            }
+
+            if paramType == MQCFT_STRING && parameter == MQCA_Q_NAME {
+                // String parameter - extract queue name
+                let stringLength: Int32 = data.withUnsafeBytes { ptr in
+                    ptr.load(fromByteOffset: offset + 16, as: Int32.self)
+                }
+                let stringOffset = offset + 20
+                let stringEnd = min(stringOffset + Int(stringLength), data.count)
+
+                if stringOffset < stringEnd {
+                    let stringData = data[stringOffset..<stringEnd]
+                    if let name = String(data: stringData, encoding: .utf8)?
+                        .trimmingCharacters(in: .whitespaces) {
+                        if !name.isEmpty {
+                            names.append(name)
+                        }
+                    }
+                }
+            }
+
+            offset += Int(strucLength)
+
+            // Safety check to prevent infinite loop
+            if strucLength <= 0 {
+                break
+            }
+        }
+
+        return names
     }
 }
 
