@@ -10,6 +10,7 @@
 		E01000001000000000000001 /* MQMateApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000001000000000000001 /* MQMateApp.swift */; };
 		E01000002000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000002000000000000002 /* ContentView.swift */; };
 		E01000005000000000000005 /* KeychainServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000005000000000000005 /* KeychainServiceTests.swift */; };
+		E01000006000000000000006 /* ConnectionManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000006000000000000006 /* ConnectionManagerTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -28,6 +29,7 @@
 		E02000003000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		E02000004000000000000004 /* MQMate.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MQMate.entitlements; sourceTree = "<group>"; };
 		E02000005000000000000005 /* KeychainServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainServiceTests.swift; sourceTree = "<group>"; };
+		E02000006000000000000006 /* ConnectionManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionManagerTests.swift; sourceTree = "<group>"; };
 		E03000001000000000000001 /* MQMate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MQMate.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E03000002000000000000002 /* MQMateTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MQMateTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -90,6 +92,7 @@
 		E05000005000000000000005 /* MQMateTests */ = {
 			isa = PBXGroup;
 			children = (
+				E02000006000000000000006 /* ConnectionManagerTests.swift */,
 				E02000005000000000000005 /* KeychainServiceTests.swift */,
 			);
 			path = MQMateTests;
@@ -183,6 +186,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E01000006000000000000006 /* ConnectionManagerTests.swift in Sources */,
 				E01000005000000000000005 /* KeychainServiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
