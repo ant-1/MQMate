@@ -61,6 +61,26 @@ struct ContentView: View {
         .onChange(of: selectedQueueId) { oldValue, newValue in
             handleQueueSelectionChange(from: oldValue, to: newValue)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .refreshQueuesRequested)) { _ in
+            handleRefreshQueuesRequest()
+        }
+    }
+
+    // MARK: - Command Handlers
+
+    /// Handle refresh queues request from menu command (Cmd+R)
+    private func handleRefreshQueuesRequest() {
+        guard let connectionId = selectedConnectionId,
+              connectionManager.isConnected(id: connectionId) else {
+            return
+        }
+
+        Task {
+            try? await connectionManager.refreshQueues(for: connectionId)
+            // Update queue view model with refreshed queues
+            let queues = connectionManager.queues(for: connectionId)
+            queueViewModel.setQueues(queues)
+        }
     }
 
     // MARK: - Subviews

@@ -107,6 +107,9 @@ struct ConnectionsView: View {
                 emptyStateView
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .newConnectionRequested)) { _ in
+            showAddConnection = true
+        }
     }
 
     // MARK: - Subviews
