@@ -9,8 +9,27 @@
 /* Begin PBXBuildFile section */
 		E01000001000000000000001 /* MQMateApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000001000000000000001 /* MQMateApp.swift */; };
 		E01000002000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000002000000000000002 /* ContentView.swift */; };
+		E01000010000000000000010 /* MQError.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000010000000000000010 /* MQError.swift */; };
+		E01000011000000000000011 /* ConnectionConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000011000000000000011 /* ConnectionConfig.swift */; };
+		E01000012000000000000012 /* Queue.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000012000000000000012 /* Queue.swift */; };
+		E01000013000000000000013 /* QueueManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000013000000000000013 /* QueueManager.swift */; };
+		E01000014000000000000014 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000014000000000000014 /* Message.swift */; };
+		E01000020000000000000020 /* MQTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000020000000000000020 /* MQTypes.swift */; };
+		E01000030000000000000030 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000030000000000000030 /* KeychainService.swift */; };
+		E01000031000000000000031 /* MQService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000031000000000000031 /* MQService.swift */; };
+		E01000040000000000000040 /* ConnectionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000040000000000000040 /* ConnectionManager.swift */; };
+		E01000041000000000000041 /* QueueViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000041000000000000041 /* QueueViewModel.swift */; };
+		E01000042000000000000042 /* MessageViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000042000000000000042 /* MessageViewModel.swift */; };
+		E01000050000000000000050 /* ConnectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000050000000000000050 /* ConnectionsView.swift */; };
+		E01000051000000000000051 /* QueueListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000051000000000000051 /* QueueListView.swift */; };
+		E01000052000000000000052 /* MessageBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000052000000000000052 /* MessageBrowserView.swift */; };
+		E01000060000000000000060 /* ConnectionFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000060000000000000060 /* ConnectionFormView.swift */; };
+		E01000061000000000000061 /* QueueRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000061000000000000061 /* QueueRowView.swift */; };
+		E01000062000000000000062 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000062000000000000062 /* EmptyStateView.swift */; };
+		E01000063000000000000063 /* MessageRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000063000000000000063 /* MessageRowView.swift */; };
 		E01000005000000000000005 /* KeychainServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000005000000000000005 /* KeychainServiceTests.swift */; };
 		E01000006000000000000006 /* ConnectionManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000006000000000000006 /* ConnectionManagerTests.swift */; };
+		E01000007000000000000007 /* ModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02000007000000000000007 /* ModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -30,6 +49,26 @@
 		E02000004000000000000004 /* MQMate.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MQMate.entitlements; sourceTree = "<group>"; };
 		E02000005000000000000005 /* KeychainServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainServiceTests.swift; sourceTree = "<group>"; };
 		E02000006000000000000006 /* ConnectionManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionManagerTests.swift; sourceTree = "<group>"; };
+		E02000007000000000000007 /* ModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelTests.swift; sourceTree = "<group>"; };
+		E02000010000000000000010 /* MQError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MQError.swift; sourceTree = "<group>"; };
+		E02000011000000000000011 /* ConnectionConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionConfig.swift; sourceTree = "<group>"; };
+		E02000012000000000000012 /* Queue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Queue.swift; sourceTree = "<group>"; };
+		E02000013000000000000013 /* QueueManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueManager.swift; sourceTree = "<group>"; };
+		E02000014000000000000014 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
+		E02000020000000000000020 /* MQTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MQTypes.swift; sourceTree = "<group>"; };
+		E02000021000000000000021 /* module.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = module.modulemap; sourceTree = "<group>"; };
+		E02000030000000000000030 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
+		E02000031000000000000031 /* MQService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MQService.swift; sourceTree = "<group>"; };
+		E02000040000000000000040 /* ConnectionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionManager.swift; sourceTree = "<group>"; };
+		E02000041000000000000041 /* QueueViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueViewModel.swift; sourceTree = "<group>"; };
+		E02000042000000000000042 /* MessageViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageViewModel.swift; sourceTree = "<group>"; };
+		E02000050000000000000050 /* ConnectionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionsView.swift; sourceTree = "<group>"; };
+		E02000051000000000000051 /* QueueListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueListView.swift; sourceTree = "<group>"; };
+		E02000052000000000000052 /* MessageBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBrowserView.swift; sourceTree = "<group>"; };
+		E02000060000000000000060 /* ConnectionFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionFormView.swift; sourceTree = "<group>"; };
+		E02000061000000000000061 /* QueueRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueRowView.swift; sourceTree = "<group>"; };
+		E02000062000000000000062 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		E02000063000000000000063 /* MessageRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageRowView.swift; sourceTree = "<group>"; };
 		E03000001000000000000001 /* MQMate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MQMate.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E03000002000000000000002 /* MQMateTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MQMateTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -66,6 +105,11 @@
 			children = (
 				E02000001000000000000001 /* MQMateApp.swift */,
 				E02000002000000000000002 /* ContentView.swift */,
+				E05000010000000000000010 /* Models */,
+				E05000020000000000000020 /* MQBridge */,
+				E05000030000000000000030 /* Services */,
+				E05000040000000000000040 /* ViewModels */,
+				E05000050000000000000050 /* Views */,
 				E02000003000000000000003 /* Info.plist */,
 				E02000004000000000000004 /* MQMate.entitlements */,
 			);
@@ -92,10 +136,73 @@
 		E05000005000000000000005 /* MQMateTests */ = {
 			isa = PBXGroup;
 			children = (
-				E02000006000000000000006 /* ConnectionManagerTests.swift */,
 				E02000005000000000000005 /* KeychainServiceTests.swift */,
+				E02000006000000000000006 /* ConnectionManagerTests.swift */,
+				E02000007000000000000007 /* ModelTests.swift */,
 			);
 			path = MQMateTests;
+			sourceTree = "<group>";
+		};
+		E05000010000000000000010 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				E02000010000000000000010 /* MQError.swift */,
+				E02000011000000000000011 /* ConnectionConfig.swift */,
+				E02000012000000000000012 /* Queue.swift */,
+				E02000013000000000000013 /* QueueManager.swift */,
+				E02000014000000000000014 /* Message.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		E05000020000000000000020 /* MQBridge */ = {
+			isa = PBXGroup;
+			children = (
+				E02000020000000000000020 /* MQTypes.swift */,
+				E02000021000000000000021 /* module.modulemap */,
+			);
+			path = MQBridge;
+			sourceTree = "<group>";
+		};
+		E05000030000000000000030 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				E02000030000000000000030 /* KeychainService.swift */,
+				E02000031000000000000031 /* MQService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		E05000040000000000000040 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				E02000040000000000000040 /* ConnectionManager.swift */,
+				E02000041000000000000041 /* QueueViewModel.swift */,
+				E02000042000000000000042 /* MessageViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		E05000050000000000000050 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				E02000050000000000000050 /* ConnectionsView.swift */,
+				E02000051000000000000051 /* QueueListView.swift */,
+				E02000052000000000000052 /* MessageBrowserView.swift */,
+				E05000060000000000000060 /* Components */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		E05000060000000000000060 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				E02000060000000000000060 /* ConnectionFormView.swift */,
+				E02000061000000000000061 /* QueueRowView.swift */,
+				E02000062000000000000062 /* EmptyStateView.swift */,
+				E02000063000000000000063 /* MessageRowView.swift */,
+			);
+			path = Components;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -179,6 +286,24 @@
 			files = (
 				E01000001000000000000001 /* MQMateApp.swift in Sources */,
 				E01000002000000000000002 /* ContentView.swift in Sources */,
+				E01000010000000000000010 /* MQError.swift in Sources */,
+				E01000011000000000000011 /* ConnectionConfig.swift in Sources */,
+				E01000012000000000000012 /* Queue.swift in Sources */,
+				E01000013000000000000013 /* QueueManager.swift in Sources */,
+				E01000014000000000000014 /* Message.swift in Sources */,
+				E01000020000000000000020 /* MQTypes.swift in Sources */,
+				E01000030000000000000030 /* KeychainService.swift in Sources */,
+				E01000031000000000000031 /* MQService.swift in Sources */,
+				E01000040000000000000040 /* ConnectionManager.swift in Sources */,
+				E01000041000000000000041 /* QueueViewModel.swift in Sources */,
+				E01000042000000000000042 /* MessageViewModel.swift in Sources */,
+				E01000050000000000000050 /* ConnectionsView.swift in Sources */,
+				E01000051000000000000051 /* QueueListView.swift in Sources */,
+				E01000052000000000000052 /* MessageBrowserView.swift in Sources */,
+				E01000060000000000000060 /* ConnectionFormView.swift in Sources */,
+				E01000061000000000000061 /* QueueRowView.swift in Sources */,
+				E01000062000000000000062 /* EmptyStateView.swift in Sources */,
+				E01000063000000000000063 /* MessageRowView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -186,8 +311,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E01000006000000000000006 /* ConnectionManagerTests.swift in Sources */,
 				E01000005000000000000005 /* KeychainServiceTests.swift in Sources */,
+				E01000006000000000000006 /* ConnectionManagerTests.swift in Sources */,
+				E01000007000000000000007 /* ModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
