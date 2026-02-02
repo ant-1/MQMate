@@ -859,6 +859,428 @@ public final class MQService: MQServiceProtocol {
 
         return names
     }
+
+    // MARK: - Message Browsing Operations
+
+    /// Message information returned from MQGET browse operations
+    public struct MQMessage: Identifiable, Sendable {
+        /// Unique identifier for the message (hex-encoded message ID)
+        public let id: String
+        /// Raw message ID bytes (24 bytes)
+        public let messageId: [UInt8]
+        /// Correlation ID bytes (24 bytes)
+        public let correlationId: [UInt8]
+        /// Message format (e.g., "MQSTR", "MQHRF2")
+        public let format: String
+        /// Message payload as raw data
+        public let payload: Data
+        /// Message payload as string (if decodable as UTF-8)
+        public let payloadString: String?
+        /// Put timestamp (when message was put to queue)
+        public let putDateTime: Date?
+        /// Put application name
+        public let putApplicationName: String
+        /// Message type (request, reply, datagram, report)
+        public let messageType: MQMessageType
+        /// Persistence (persistent or not persistent)
+        public let persistence: MQMessagePersistence
+        /// Message priority (0-9)
+        public let priority: Int32
+        /// Reply-to queue name
+        public let replyToQueue: String
+        /// Reply-to queue manager name
+        public let replyToQueueManager: String
+        /// Message sequence number within group
+        public let messageSequenceNumber: Int32
+        /// Message position (index in browse cursor, 0-based)
+        public let position: Int
+
+        public init(
+            messageId: [UInt8],
+            correlationId: [UInt8],
+            format: String,
+            payload: Data,
+            putDateTime: Date?,
+            putApplicationName: String,
+            messageType: MQMessageType,
+            persistence: MQMessagePersistence,
+            priority: Int32,
+            replyToQueue: String,
+            replyToQueueManager: String,
+            messageSequenceNumber: Int32,
+            position: Int
+        ) {
+            self.messageId = messageId
+            self.correlationId = correlationId
+            self.id = messageId.map { String(format: "%02X", $0) }.joined()
+            self.format = format
+            self.payload = payload
+            self.payloadString = String(data: payload, encoding: .utf8)
+            self.putDateTime = putDateTime
+            self.putApplicationName = putApplicationName
+            self.messageType = messageType
+            self.persistence = persistence
+            self.priority = priority
+            self.replyToQueue = replyToQueue
+            self.replyToQueueManager = replyToQueueManager
+            self.messageSequenceNumber = messageSequenceNumber
+            self.position = position
+        }
+
+        /// Correlation ID as hex string
+        public var correlationIdHex: String {
+            correlationId.map { String(format: "%02X", $0) }.joined()
+        }
+
+        /// Check if payload appears to be binary (non-printable characters)
+        public var isBinaryPayload: Bool {
+            guard let string = payloadString else { return true }
+            // Check if the string contains mostly printable characters
+            let printableCount = string.unicodeScalars.filter { CharacterSet.alphanumerics.union(.punctuationCharacters).union(.whitespaces).contains($0) }.count
+            return Double(printableCount) / Double(max(string.count, 1)) < 0.8
+        }
+    }
+
+    /// Message type enumeration
+    public enum MQMessageType: Int32, Sendable {
+        case datagram = 8
+        case request = 1
+        case reply = 2
+        case report = 4
+        case unknown = -1
+
+        public init(rawValue: Int32) {
+            switch rawValue {
+            case 8: self = .datagram
+            case 1: self = .request
+            case 2: self = .reply
+            case 4: self = .report
+            default: self = .unknown
+            }
+        }
+
+        public var displayName: String {
+            switch self {
+            case .datagram: return "Datagram"
+            case .request: return "Request"
+            case .reply: return "Reply"
+            case .report: return "Report"
+            case .unknown: return "Unknown"
+            }
+        }
+    }
+
+    /// Message persistence enumeration
+    public enum MQMessagePersistence: Int32, Sendable {
+        case notPersistent = 0
+        case persistent = 1
+        case asQueueDef = 2
+        case unknown = -1
+
+        public init(rawValue: Int32) {
+            switch rawValue {
+            case 0: self = .notPersistent
+            case 1: self = .persistent
+            case 2: self = .asQueueDef
+            default: self = .unknown
+            }
+        }
+
+        public var displayName: String {
+            switch self {
+            case .notPersistent: return "Not Persistent"
+            case .persistent: return "Persistent"
+            case .asQueueDef: return "As Queue Def"
+            case .unknown: return "Unknown"
+            }
+        }
+    }
+
+    /// Browse messages in a queue without removing them
+    /// Uses MQGET with MQGMO_BROWSE_FIRST and MQGMO_BROWSE_NEXT options
+    /// - Parameters:
+    ///   - queueName: Name of the queue to browse
+    ///   - maxMessages: Maximum number of messages to retrieve (default: 100)
+    ///   - maxMessageSize: Maximum size per message in bytes (default: 4MB)
+    /// - Returns: Array of MQMessage objects
+    /// - Throws: MQError if browsing fails
+    public func browseMessages(
+        queueName: String,
+        maxMessages: Int = 100,
+        maxMessageSize: Int = 4 * 1024 * 1024
+    ) async throws -> [MQMessage] {
+        guard isConnected else {
+            throw MQError.notConnected
+        }
+
+        // Open queue for browsing
+        var objectHandle = try openQueue(
+            queueName: queueName,
+            options: MQOO_BROWSE | MQOO_FAIL_IF_QUIESCING
+        )
+
+        defer {
+            closeQueue(&objectHandle)
+        }
+
+        return try performBrowseMessages(
+            objectHandle: objectHandle,
+            queueName: queueName,
+            maxMessages: maxMessages,
+            maxMessageSize: maxMessageSize
+        )
+    }
+
+    /// Perform the actual message browsing operation
+    private func performBrowseMessages(
+        objectHandle: MQHOBJ,
+        queueName: String,
+        maxMessages: Int,
+        maxMessageSize: Int
+    ) throws -> [MQMessage] {
+        var messages: [MQMessage] = []
+        var compCode: MQLONG = MQCC_OK
+        var reason: MQLONG = MQRC_NONE
+        var isFirstMessage = true
+        var position = 0
+
+        // Buffer for message data
+        var buffer = [UInt8](repeating: 0, count: maxMessageSize)
+
+        while messages.count < maxMessages {
+            // Initialize message descriptor for each MQGET call
+            var messageDescriptor = MQMD()
+            messageDescriptor.Version = MQMD_VERSION_2
+
+            // Initialize get message options
+            var getOptions = MQGMO()
+            getOptions.Version = MQGMO_VERSION_2
+
+            // Use BROWSE_FIRST for the first message, BROWSE_NEXT for subsequent
+            if isFirstMessage {
+                getOptions.Options = MQGMO_BROWSE_FIRST | MQGMO_NO_SYNCPOINT | MQGMO_CONVERT | MQGMO_ACCEPT_TRUNCATED_MSG | MQGMO_FAIL_IF_QUIESCING
+                isFirstMessage = false
+            } else {
+                getOptions.Options = MQGMO_BROWSE_NEXT | MQGMO_NO_SYNCPOINT | MQGMO_CONVERT | MQGMO_ACCEPT_TRUNCATED_MSG | MQGMO_FAIL_IF_QUIESCING
+            }
+
+            // No wait - return immediately if no message
+            getOptions.WaitInterval = 0
+            getOptions.MatchOptions = MQMO_NONE
+
+            var dataLength: MQLONG = 0
+
+            // Call MQGET to browse the message
+            MQGET(
+                connectionHandle,
+                objectHandle,
+                &messageDescriptor,
+                &getOptions,
+                MQLONG(buffer.count),
+                &buffer,
+                &dataLength,
+                &compCode,
+                &reason
+            )
+
+            // Check for no more messages
+            if reason == MQRC_NO_MSG_AVAILABLE {
+                break
+            }
+
+            // Check for errors (allow truncated messages)
+            if compCode == MQCC_FAILED && reason != MQRC_TRUNCATED_MSG_FAILED {
+                throw MQError.operationFailed(
+                    operation: "MQGET(browse \(queueName))",
+                    completionCode: compCode,
+                    reason: reason
+                )
+            }
+
+            // Extract message data from descriptor
+            let message = extractMessageFromDescriptor(
+                messageDescriptor: messageDescriptor,
+                buffer: buffer,
+                dataLength: dataLength,
+                position: position
+            )
+            messages.append(message)
+            position += 1
+        }
+
+        return messages
+    }
+
+    /// Extract message information from MQMD and payload buffer
+    private func extractMessageFromDescriptor(
+        messageDescriptor: MQMD,
+        buffer: [UInt8],
+        dataLength: MQLONG,
+        position: Int
+    ) -> MQMessage {
+        // Extract message ID (24 bytes)
+        var messageId = [UInt8](repeating: 0, count: Int(MQ_MSG_ID_LENGTH))
+        withUnsafePointer(to: messageDescriptor.MsgId) { ptr in
+            let bound = ptr.withMemoryRebound(to: UInt8.self, capacity: Int(MQ_MSG_ID_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_MSG_ID_LENGTH) {
+                messageId[i] = bound[i]
+            }
+        }
+
+        // Extract correlation ID (24 bytes)
+        var correlationId = [UInt8](repeating: 0, count: Int(MQ_CORREL_ID_LENGTH))
+        withUnsafePointer(to: messageDescriptor.CorrelId) { ptr in
+            let bound = ptr.withMemoryRebound(to: UInt8.self, capacity: Int(MQ_CORREL_ID_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_CORREL_ID_LENGTH) {
+                correlationId[i] = bound[i]
+            }
+        }
+
+        // Extract format string (8 characters)
+        var formatChars = [MQCHAR](repeating: 0x20, count: Int(MQ_FORMAT_LENGTH))
+        withUnsafePointer(to: messageDescriptor.Format) { ptr in
+            let bound = ptr.withMemoryRebound(to: MQCHAR.self, capacity: Int(MQ_FORMAT_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_FORMAT_LENGTH) {
+                formatChars[i] = bound[i]
+            }
+        }
+        let format = String(bytes: formatChars.map { UInt8(bitPattern: $0) }, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespaces) ?? ""
+
+        // Extract put application name (28 characters)
+        var putApplNameChars = [MQCHAR](repeating: 0x20, count: Int(MQ_PUT_APPL_NAME_LENGTH))
+        withUnsafePointer(to: messageDescriptor.PutApplName) { ptr in
+            let bound = ptr.withMemoryRebound(to: MQCHAR.self, capacity: Int(MQ_PUT_APPL_NAME_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_PUT_APPL_NAME_LENGTH) {
+                putApplNameChars[i] = bound[i]
+            }
+        }
+        let putApplicationName = String(bytes: putApplNameChars.map { UInt8(bitPattern: $0) }, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespaces) ?? ""
+
+        // Extract reply-to queue name (48 characters)
+        var replyToQChars = [MQCHAR](repeating: 0x20, count: Int(MQ_Q_NAME_LENGTH))
+        withUnsafePointer(to: messageDescriptor.ReplyToQ) { ptr in
+            let bound = ptr.withMemoryRebound(to: MQCHAR.self, capacity: Int(MQ_Q_NAME_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_Q_NAME_LENGTH) {
+                replyToQChars[i] = bound[i]
+            }
+        }
+        let replyToQueue = String(bytes: replyToQChars.map { UInt8(bitPattern: $0) }, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespaces) ?? ""
+
+        // Extract reply-to queue manager name (48 characters)
+        var replyToQMgrChars = [MQCHAR](repeating: 0x20, count: Int(MQ_Q_MGR_NAME_LENGTH))
+        withUnsafePointer(to: messageDescriptor.ReplyToQMgr) { ptr in
+            let bound = ptr.withMemoryRebound(to: MQCHAR.self, capacity: Int(MQ_Q_MGR_NAME_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_Q_MGR_NAME_LENGTH) {
+                replyToQMgrChars[i] = bound[i]
+            }
+        }
+        let replyToQueueManager = String(bytes: replyToQMgrChars.map { UInt8(bitPattern: $0) }, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespaces) ?? ""
+
+        // Parse put date/time
+        let putDateTime = parsePutDateTime(messageDescriptor: messageDescriptor)
+
+        // Extract payload
+        let payloadSize = min(Int(dataLength), buffer.count)
+        let payload = Data(buffer.prefix(payloadSize))
+
+        return MQMessage(
+            messageId: messageId,
+            correlationId: correlationId,
+            format: format,
+            payload: payload,
+            putDateTime: putDateTime,
+            putApplicationName: putApplicationName,
+            messageType: MQMessageType(rawValue: messageDescriptor.MsgType),
+            persistence: MQMessagePersistence(rawValue: messageDescriptor.Persistence),
+            priority: messageDescriptor.Priority,
+            replyToQueue: replyToQueue,
+            replyToQueueManager: replyToQueueManager,
+            messageSequenceNumber: messageDescriptor.MsgSeqNumber,
+            position: position
+        )
+    }
+
+    /// Parse put date and time from MQMD fields
+    private func parsePutDateTime(messageDescriptor: MQMD) -> Date? {
+        // Extract PutDate (8 characters: YYYYMMDD)
+        var putDateChars = [MQCHAR](repeating: 0x20, count: Int(MQ_PUT_DATE_LENGTH))
+        withUnsafePointer(to: messageDescriptor.PutDate) { ptr in
+            let bound = ptr.withMemoryRebound(to: MQCHAR.self, capacity: Int(MQ_PUT_DATE_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_PUT_DATE_LENGTH) {
+                putDateChars[i] = bound[i]
+            }
+        }
+        let putDateString = String(bytes: putDateChars.map { UInt8(bitPattern: $0) }, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespaces) ?? ""
+
+        // Extract PutTime (8 characters: HHMMSSTH)
+        var putTimeChars = [MQCHAR](repeating: 0x20, count: Int(MQ_PUT_TIME_LENGTH))
+        withUnsafePointer(to: messageDescriptor.PutTime) { ptr in
+            let bound = ptr.withMemoryRebound(to: MQCHAR.self, capacity: Int(MQ_PUT_TIME_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_PUT_TIME_LENGTH) {
+                putTimeChars[i] = bound[i]
+            }
+        }
+        let putTimeString = String(bytes: putTimeChars.map { UInt8(bitPattern: $0) }, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespaces) ?? ""
+
+        // Parse date and time
+        guard putDateString.count >= 8, putTimeString.count >= 6 else {
+            return nil
+        }
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyyMMddHHmmss"
+        dateFormatter.timeZone = TimeZone(identifier: "UTC")
+
+        let dateTimeString = String(putDateString.prefix(8)) + String(putTimeString.prefix(6))
+        return dateFormatter.date(from: dateTimeString)
+    }
+
+    /// Browse a single message at a specific position
+    /// - Parameters:
+    ///   - queueName: Name of the queue to browse
+    ///   - position: Position of the message (0-based index)
+    ///   - maxMessageSize: Maximum size per message in bytes (default: 4MB)
+    /// - Returns: MQMessage at the specified position, or nil if not found
+    /// - Throws: MQError if browsing fails
+    public func browseMessageAt(
+        queueName: String,
+        position: Int,
+        maxMessageSize: Int = 4 * 1024 * 1024
+    ) async throws -> MQMessage? {
+        guard isConnected else {
+            throw MQError.notConnected
+        }
+
+        // Browse messages up to and including the specified position
+        let messages = try await browseMessages(
+            queueName: queueName,
+            maxMessages: position + 1,
+            maxMessageSize: maxMessageSize
+        )
+
+        // Return the message at the specified position if it exists
+        guard position < messages.count else {
+            return nil
+        }
+
+        return messages[position]
+    }
+
+    /// Get the count of messages currently in a queue
+    /// This is a convenience method that uses getQueueInfo
+    /// - Parameter queueName: Name of the queue
+    /// - Returns: Number of messages in the queue
+    /// - Throws: MQError if inquiry fails
+    public func getMessageCount(queueName: String) throws -> Int32 {
+        let queueInfo = try getQueueInfo(queueName: queueName)
+        return queueInfo.currentDepth
+    }
 }
 
 // MARK: - Helper Extensions for MQService
