@@ -53,10 +53,41 @@ struct ConnectionsView: View {
             }
         }
         .sheet(isPresented: $showAddConnection) {
-            addConnectionPlaceholder
+            ConnectionFormView(
+                mode: .add,
+                onSave: { config, password in
+                    do {
+                        try connectionManager.addConnection(config, password: password)
+                        showAddConnection = false
+                        // Select the newly added connection
+                        selection = config.id
+                    } catch {
+                        connectionManager.lastError = error
+                        connectionManager.showErrorAlert = true
+                    }
+                },
+                onCancel: {
+                    showAddConnection = false
+                }
+            )
         }
         .sheet(item: $connectionToEdit) { config in
-            editConnectionPlaceholder(config: config)
+            ConnectionFormView(
+                mode: .edit(config),
+                hasExistingPassword: connectionManager.hasPassword(for: config.id),
+                onSave: { updatedConfig, password in
+                    do {
+                        try connectionManager.updateConnection(updatedConfig, password: password)
+                        connectionToEdit = nil
+                    } catch {
+                        connectionManager.lastError = error
+                        connectionManager.showErrorAlert = true
+                    }
+                },
+                onCancel: {
+                    connectionToEdit = nil
+                }
+            )
         }
         .confirmationDialog(
             "Delete Connection?",
@@ -105,38 +136,6 @@ struct ConnectionsView: View {
             }
             .buttonStyle(.borderedProminent)
         }
-    }
-
-    /// Placeholder view for add connection sheet (to be replaced by ConnectionFormView)
-    private var addConnectionPlaceholder: some View {
-        VStack(spacing: 20) {
-            Text("Add Connection")
-                .font(.headline)
-            Text("ConnectionFormView will be implemented in subtask-5-2")
-                .foregroundStyle(.secondary)
-            Button("Close") {
-                showAddConnection = false
-            }
-            .keyboardShortcut(.cancelAction)
-        }
-        .padding(40)
-        .frame(minWidth: 400, minHeight: 300)
-    }
-
-    /// Placeholder view for edit connection sheet
-    private func editConnectionPlaceholder(config: ConnectionConfig) -> some View {
-        VStack(spacing: 20) {
-            Text("Edit Connection: \(config.name)")
-                .font(.headline)
-            Text("ConnectionFormView will be implemented in subtask-5-2")
-                .foregroundStyle(.secondary)
-            Button("Close") {
-                connectionToEdit = nil
-            }
-            .keyboardShortcut(.cancelAction)
-        }
-        .padding(40)
-        .frame(minWidth: 400, minHeight: 300)
     }
 
     /// Context menu for connection row
