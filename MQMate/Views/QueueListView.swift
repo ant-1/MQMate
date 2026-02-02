@@ -81,30 +81,15 @@ struct QueueListView: View {
 
     /// Loading indicator
     private var loadingView: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-                .controlSize(.large)
-            Text("Loading queues...")
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        LoadingView("Loading queues...")
     }
 
     /// Empty state when no queues exist
     private var emptyStateView: some View {
-        ContentUnavailableView {
-            Label("No Queues", systemImage: "tray")
-        } description: {
-            Text("This queue manager has no queues, or you don't have permission to view them.")
-        } actions: {
-            Button {
-                Task {
-                    try? await queueViewModel.refresh()
-                }
-            } label: {
-                Text("Refresh")
+        EmptyStateView.noQueues {
+            Task {
+                try? await queueViewModel.refresh()
             }
-            .buttonStyle(.borderedProminent)
         }
     }
 
