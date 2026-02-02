@@ -55,6 +55,18 @@ struct ContentView: View {
             messageBrowserDetail
         }
         .navigationSplitViewStyle(.balanced)
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                // Connect button
+                connectButton
+
+                // Refresh button
+                refreshButton
+
+                // Add connection button
+                addConnectionButton
+            }
+        }
         .onChange(of: selectedConnectionId) { oldValue, newValue in
             handleConnectionSelectionChange(from: oldValue, to: newValue)
         }
@@ -64,6 +76,58 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .refreshQueuesRequested)) { _ in
             handleRefreshQueuesRequest()
         }
+    }
+
+    // MARK: - Toolbar Buttons
+
+    /// Connect button for connecting to the selected connection
+    private var connectButton: some View {
+        Button {
+            guard let connectionId = selectedConnectionId else { return }
+            Task {
+                try? await connectionManager.connect(id: connectionId)
+            }
+        } label: {
+            Image(systemName: "bolt")
+        }
+        .help("Connect (⌘⏎)")
+        .disabled(!canConnect)
+    }
+
+    /// Refresh button for refreshing the queue list
+    private var refreshButton: some View {
+        Button {
+            handleRefreshQueuesRequest()
+        } label: {
+            Image(systemName: "arrow.clockwise")
+        }
+        .help("Refresh Queues (⌘R)")
+        .disabled(!canRefresh)
+    }
+
+    /// Add connection button
+    private var addConnectionButton: some View {
+        Button {
+            NotificationCenter.default.post(name: .newConnectionRequested, object: nil)
+        } label: {
+            Image(systemName: "plus")
+        }
+        .help("Add Connection (⌘N)")
+    }
+
+    // MARK: - Toolbar State
+
+    /// Whether the connect button should be enabled
+    private var canConnect: Bool {
+        guard let connectionId = selectedConnectionId else { return false }
+        let state = connectionManager.connectionState(for: connectionId)
+        return state == .disconnected || state == .error
+    }
+
+    /// Whether the refresh button should be enabled
+    private var canRefresh: Bool {
+        guard let connectionId = selectedConnectionId else { return false }
+        return connectionManager.isConnected(id: connectionId)
     }
 
     // MARK: - Command Handlers
