@@ -30,6 +30,9 @@ public protocol MQServiceProtocol {
 
     /// Create a new queue in the connected queue manager
     func createQueue(queueName: String, queueType: MQQueueType, maxDepth: Int32?) async throws
+
+    /// Delete an existing queue from the connected queue manager
+    func deleteQueue(queueName: String) async throws
 }
 
 // MARK: - MQ Service Implementation
@@ -1556,6 +1559,222 @@ public final class MQService: MQServiceProtocol {
                 reasonCode: pcfReason
             )
         }
+    }
+
+    /// Delete an existing queue from the connected queue manager
+    /// Uses PCF MQCMD_DELETE_Q command to delete the queue
+    /// - Parameter queueName: Name of the queue to delete (max 48 characters)
+    /// - Throws: MQError if queue deletion fails
+    public func deleteQueue(queueName: String) async throws {
+        guard isConnected else {
+            throw MQError.notConnected
+        }
+
+        // Validate queue name
+        guard !queueName.isEmpty else {
+            throw MQError.invalidConfiguration(message: "Queue name cannot be empty")
+        }
+
+        guard queueName.count <= Int(MQ_Q_NAME_LENGTH) else {
+            throw MQError.invalidConfiguration(message: "Queue name cannot exceed 48 characters")
+        }
+
+        // Send PCF delete queue command
+        try sendPCFDeleteQueue(queueName: queueName)
+    }
+
+    /// Send a PCF MQCMD_DELETE_Q command to delete a queue
+    /// - Parameter queueName: Name of the queue to delete
+    /// - Throws: MQError if the PCF command fails
+    private func sendPCFDeleteQueue(queueName: String) throws {
+        var compCode: MQLONG = MQCC_OK
+        var reason: MQLONG = MQRC_NONE
+
+        // Open the command queue for sending PCF commands
+        var adminObjectHandle = try openQueue(
+            queueName: "SYSTEM.ADMIN.COMMAND.QUEUE",
+            options: MQOO_OUTPUT | MQOO_FAIL_IF_QUIESCING
+        )
+
+        defer {
+            closeQueue(&adminObjectHandle)
+        }
+
+        // Generate a unique reply queue name
+        let replyQueueModel = "SYSTEM.DEFAULT.MODEL.QUEUE"
+        let replyQueuePrefix = "MQMATE.REPLY.*"
+
+        // Open a dynamic reply queue
+        var replyObjectDescriptor = MQOD()
+        replyObjectDescriptor.Version = MQOD_VERSION_4
+        replyObjectDescriptor.ObjectType = MQOT_Q
+
+        // Set model queue name
+        let modelQueueChars = replyQueueModel.toMQCharArray(length: Int(MQ_Q_NAME_LENGTH))
+        withUnsafeMutablePointer(to: &replyObjectDescriptor.ObjectName) { ptr in
+            let bound = ptr.withMemoryRebound(to: MQCHAR.self, capacity: Int(MQ_Q_NAME_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_Q_NAME_LENGTH) {
+                bound[i] = modelQueueChars[i]
+            }
+        }
+
+        // Set dynamic queue name prefix
+        let dynamicQueueChars = replyQueuePrefix.toMQCharArray(length: Int(MQ_Q_NAME_LENGTH))
+        withUnsafeMutablePointer(to: &replyObjectDescriptor.DynamicQName) { ptr in
+            let bound = ptr.withMemoryRebound(to: MQCHAR.self, capacity: Int(MQ_Q_NAME_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_Q_NAME_LENGTH) {
+                bound[i] = dynamicQueueChars[i]
+            }
+        }
+
+        var replyObjectHandle: MQHOBJ = MQHO_UNUSABLE_HOBJ
+        MQOPEN(
+            connectionHandle,
+            &replyObjectDescriptor,
+            MQOO_INPUT_EXCLUSIVE | MQOO_FAIL_IF_QUIESCING,
+            &replyObjectHandle,
+            &compCode,
+            &reason
+        )
+
+        guard compCode != MQCC_FAILED else {
+            throw MQError.operationFailed(
+                operation: "MQOPEN(reply queue for delete)",
+                completionCode: compCode,
+                reasonCode: reason
+            )
+        }
+
+        defer {
+            var handle = replyObjectHandle
+            closeQueue(&handle)
+        }
+
+        // Extract the actual dynamic queue name
+        var replyQueueName = [MQCHAR](repeating: 0x20, count: Int(MQ_Q_NAME_LENGTH))
+        withUnsafePointer(to: &replyObjectDescriptor.ObjectName) { ptr in
+            let bound = ptr.withMemoryRebound(to: MQCHAR.self, capacity: Int(MQ_Q_NAME_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_Q_NAME_LENGTH) {
+                replyQueueName[i] = bound[i]
+            }
+        }
+
+        // Build PCF message for MQCMD_DELETE_Q
+        let pcfMessage = try buildPCFDeleteQueueMessage(
+            queueName: queueName,
+            replyQueueName: replyQueueName
+        )
+
+        // Send the PCF command
+        try sendPCFMessage(
+            objectHandle: adminObjectHandle,
+            message: pcfMessage,
+            replyQueueName: replyQueueName
+        )
+
+        // Receive and check the response for errors
+        try receivePCFDeleteQueueResponse(replyObjectHandle: replyObjectHandle)
+    }
+
+    /// Build a PCF MQCMD_DELETE_Q message
+    /// - Parameters:
+    ///   - queueName: Name of the queue to delete
+    ///   - replyQueueName: Reply queue name for response
+    /// - Returns: PCF message data
+    private func buildPCFDeleteQueueMessage(
+        queueName: String,
+        replyQueueName: [MQCHAR]
+    ) throws -> Data {
+        // PCF Header structure
+        var pcfHeader = MQCFH()
+        pcfHeader.Type = MQCFT_COMMAND
+        pcfHeader.StrucLength = MQCFH_STRUC_LENGTH
+        pcfHeader.Version = MQCFH_VERSION_1
+        pcfHeader.Command = MQCMD_DELETE_Q
+        pcfHeader.MsgSeqNumber = 1
+        pcfHeader.Control = MQCFC_LAST
+        pcfHeader.ParameterCount = 1 // Only queue name required
+
+        var message = Data()
+
+        // Append header
+        withUnsafeBytes(of: &pcfHeader) { buffer in
+            message.append(contentsOf: buffer)
+        }
+
+        // Add MQCA_Q_NAME parameter (string parameter for queue name)
+        var qNameParam = MQCFST()
+        qNameParam.Type = MQCFT_STRING
+        qNameParam.StrucLength = MQCFST_STRUC_LENGTH_FIXED + Int32(MQ_Q_NAME_LENGTH)
+        qNameParam.Parameter = MQCA_Q_NAME
+        qNameParam.CodedCharSetId = MQCCSI_DEFAULT
+        qNameParam.StringLength = Int32(MQ_Q_NAME_LENGTH)
+
+        withUnsafeBytes(of: &qNameParam) { buffer in
+            // Only append up to the String field (before the actual string data)
+            message.append(contentsOf: buffer.prefix(MemoryLayout<MQCFST>.size - MemoryLayout<MQCHAR>.size))
+        }
+
+        // Append the queue name string (space-padded to 48 chars)
+        let queueNameChars = queueName.toMQCharArray(length: Int(MQ_Q_NAME_LENGTH))
+        message.append(contentsOf: queueNameChars.map { UInt8(bitPattern: $0) })
+
+        return message
+    }
+
+    /// Receive and validate PCF response for queue deletion
+    /// - Parameter replyObjectHandle: Handle to the reply queue
+    /// - Throws: MQError if the queue deletion failed
+    private func receivePCFDeleteQueueResponse(replyObjectHandle: MQHOBJ) throws {
+        var compCode: MQLONG = MQCC_OK
+        var reason: MQLONG = MQRC_NONE
+
+        // Message descriptor
+        var messageDescriptor = MQMD()
+        messageDescriptor.Version = MQMD_VERSION_2
+
+        // Get message options
+        var getOptions = MQGMO()
+        getOptions.Version = MQGMO_VERSION_2
+        getOptions.Options = MQGMO_NO_SYNCPOINT | MQGMO_WAIT | MQGMO_CONVERT
+        getOptions.WaitInterval = 30000 // 30 second timeout for admin commands
+        getOptions.MatchOptions = MQMO_NONE
+
+        // Buffer for response
+        var buffer = [UInt8](repeating: 0, count: 65536)
+        var dataLength: MQLONG = 0
+
+        MQGET(
+            connectionHandle,
+            replyObjectHandle,
+            &messageDescriptor,
+            &getOptions,
+            MQLONG(buffer.count),
+            &buffer,
+            &dataLength,
+            &compCode,
+            &reason
+        )
+
+        if reason == MQRC_NO_MSG_AVAILABLE {
+            throw MQError.operationFailed(
+                operation: "Delete queue (no response received)",
+                completionCode: MQCC_FAILED,
+                reasonCode: reason
+            )
+        }
+
+        guard compCode != MQCC_FAILED else {
+            throw MQError.operationFailed(
+                operation: "MQGET(PCF delete queue response)",
+                completionCode: compCode,
+                reasonCode: reason
+            )
+        }
+
+        // Parse the PCF response header to check for errors
+        let responseData = Data(buffer.prefix(Int(dataLength)))
+        try validatePCFResponse(data: responseData, operation: "Delete queue")
     }
 }
 

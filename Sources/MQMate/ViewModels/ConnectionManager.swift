@@ -578,4 +578,21 @@ public final class MockMQService: MQServiceProtocol {
         )
         simulatedQueues.append(newQueue)
     }
+
+    public func deleteQueue(queueName: String) async throws {
+        // Simulate network delay
+        try await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
+
+        guard isConnected else {
+            throw MQError.notConnected
+        }
+
+        // Check if queue exists
+        guard let index = simulatedQueues.firstIndex(where: { $0.name == queueName }) else {
+            throw MQError.operationFailed(operation: "Delete queue", completionCode: 2, reasonCode: 2085)
+        }
+
+        // Remove the queue
+        simulatedQueues.remove(at: index)
+    }
 }

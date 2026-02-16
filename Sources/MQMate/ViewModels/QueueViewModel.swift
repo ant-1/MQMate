@@ -452,4 +452,8 @@ private final class PreviewMQService: MQServiceProtocol {
     func createQueue(queueName: String, queueType: MQQueueType, maxDepth: Int32?) async throws {
         // Mock implementation - does nothing
     }
+
+    func deleteQueue(queueName: String) async throws {
+        // Mock implementation - does nothing
+    }
 }
