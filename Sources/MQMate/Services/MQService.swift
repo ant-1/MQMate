@@ -27,6 +27,9 @@ public protocol MQServiceProtocol {
 
     /// List all queues in the connected queue manager
     func listQueues(filter: String) async throws -> [MQService.QueueInfo]
+
+    /// Create a new queue in the connected queue manager
+    func createQueue(queueName: String, queueType: MQQueueType, maxDepth: Int32?) async throws
 }
 
 // MARK: - MQ Service Implementation
@@ -1249,6 +1252,310 @@ public final class MQService: MQServiceProtocol {
     public func getMessageCount(queueName: String) throws -> Int32 {
         let queueInfo = try getQueueInfo(queueName: queueName)
         return queueInfo.currentDepth
+    }
+
+    // MARK: - Queue Management Operations
+
+    /// Create a new queue in the connected queue manager
+    /// Uses PCF MQCMD_CREATE_Q command to create the queue
+    /// - Parameters:
+    ///   - queueName: Name of the queue to create (max 48 characters)
+    ///   - queueType: Type of queue to create (local, alias, remote, model)
+    ///   - maxDepth: Maximum depth of the queue (optional, uses queue manager default if nil)
+    /// - Throws: MQError if queue creation fails
+    public func createQueue(
+        queueName: String,
+        queueType: MQQueueType = .local,
+        maxDepth: Int32? = nil
+    ) async throws {
+        guard isConnected else {
+            throw MQError.notConnected
+        }
+
+        // Validate queue name
+        guard !queueName.isEmpty else {
+            throw MQError.invalidConfiguration(message: "Queue name cannot be empty")
+        }
+
+        guard queueName.count <= Int(MQ_Q_NAME_LENGTH) else {
+            throw MQError.invalidConfiguration(message: "Queue name cannot exceed 48 characters")
+        }
+
+        // Send PCF create queue command
+        try sendPCFCreateQueue(
+            queueName: queueName,
+            queueType: queueType,
+            maxDepth: maxDepth
+        )
+    }
+
+    /// Send a PCF MQCMD_CREATE_Q command to create a new queue
+    /// - Parameters:
+    ///   - queueName: Name of the queue to create
+    ///   - queueType: Type of queue to create
+    ///   - maxDepth: Maximum depth of the queue (optional)
+    /// - Throws: MQError if the PCF command fails
+    private func sendPCFCreateQueue(
+        queueName: String,
+        queueType: MQQueueType,
+        maxDepth: Int32?
+    ) throws {
+        var compCode: MQLONG = MQCC_OK
+        var reason: MQLONG = MQRC_NONE
+
+        // Open the command queue for sending PCF commands
+        var adminObjectHandle = try openQueue(
+            queueName: "SYSTEM.ADMIN.COMMAND.QUEUE",
+            options: MQOO_OUTPUT | MQOO_FAIL_IF_QUIESCING
+        )
+
+        defer {
+            closeQueue(&adminObjectHandle)
+        }
+
+        // Generate a unique reply queue name
+        let replyQueueModel = "SYSTEM.DEFAULT.MODEL.QUEUE"
+        let replyQueuePrefix = "MQMATE.REPLY.*"
+
+        // Open a dynamic reply queue
+        var replyObjectDescriptor = MQOD()
+        replyObjectDescriptor.Version = MQOD_VERSION_4
+        replyObjectDescriptor.ObjectType = MQOT_Q
+
+        // Set model queue name
+        let modelQueueChars = replyQueueModel.toMQCharArray(length: Int(MQ_Q_NAME_LENGTH))
+        withUnsafeMutablePointer(to: &replyObjectDescriptor.ObjectName) { ptr in
+            let bound = ptr.withMemoryRebound(to: MQCHAR.self, capacity: Int(MQ_Q_NAME_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_Q_NAME_LENGTH) {
+                bound[i] = modelQueueChars[i]
+            }
+        }
+
+        // Set dynamic queue name prefix
+        let dynamicQueueChars = replyQueuePrefix.toMQCharArray(length: Int(MQ_Q_NAME_LENGTH))
+        withUnsafeMutablePointer(to: &replyObjectDescriptor.DynamicQName) { ptr in
+            let bound = ptr.withMemoryRebound(to: MQCHAR.self, capacity: Int(MQ_Q_NAME_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_Q_NAME_LENGTH) {
+                bound[i] = dynamicQueueChars[i]
+            }
+        }
+
+        var replyObjectHandle: MQHOBJ = MQHO_UNUSABLE_HOBJ
+        MQOPEN(
+            connectionHandle,
+            &replyObjectDescriptor,
+            MQOO_INPUT_EXCLUSIVE | MQOO_FAIL_IF_QUIESCING,
+            &replyObjectHandle,
+            &compCode,
+            &reason
+        )
+
+        guard compCode != MQCC_FAILED else {
+            throw MQError.operationFailed(
+                operation: "MQOPEN(reply queue for create)",
+                completionCode: compCode,
+                reasonCode: reason
+            )
+        }
+
+        defer {
+            var handle = replyObjectHandle
+            closeQueue(&handle)
+        }
+
+        // Extract the actual dynamic queue name
+        var replyQueueName = [MQCHAR](repeating: 0x20, count: Int(MQ_Q_NAME_LENGTH))
+        withUnsafePointer(to: &replyObjectDescriptor.ObjectName) { ptr in
+            let bound = ptr.withMemoryRebound(to: MQCHAR.self, capacity: Int(MQ_Q_NAME_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_Q_NAME_LENGTH) {
+                replyQueueName[i] = bound[i]
+            }
+        }
+
+        // Build PCF message for MQCMD_CREATE_Q
+        let pcfMessage = try buildPCFCreateQueueMessage(
+            queueName: queueName,
+            queueType: queueType,
+            maxDepth: maxDepth,
+            replyQueueName: replyQueueName
+        )
+
+        // Send the PCF command
+        try sendPCFMessage(
+            objectHandle: adminObjectHandle,
+            message: pcfMessage,
+            replyQueueName: replyQueueName
+        )
+
+        // Receive and check the response for errors
+        try receivePCFCreateQueueResponse(replyObjectHandle: replyObjectHandle)
+    }
+
+    /// Build a PCF MQCMD_CREATE_Q message
+    /// - Parameters:
+    ///   - queueName: Name of the queue to create
+    ///   - queueType: Type of queue to create
+    ///   - maxDepth: Maximum depth of the queue (optional)
+    ///   - replyQueueName: Reply queue name for response
+    /// - Returns: PCF message data
+    private func buildPCFCreateQueueMessage(
+        queueName: String,
+        queueType: MQQueueType,
+        maxDepth: Int32?,
+        replyQueueName: [MQCHAR]
+    ) throws -> Data {
+        // Determine parameter count based on optional parameters
+        var parameterCount: Int32 = 2 // Queue name + queue type (required)
+        if maxDepth != nil {
+            parameterCount += 1
+        }
+
+        // PCF Header structure
+        var pcfHeader = MQCFH()
+        pcfHeader.Type = MQCFT_COMMAND
+        pcfHeader.StrucLength = MQCFH_STRUC_LENGTH
+        pcfHeader.Version = MQCFH_VERSION_1
+        pcfHeader.Command = MQCMD_CREATE_Q
+        pcfHeader.MsgSeqNumber = 1
+        pcfHeader.Control = MQCFC_LAST
+        pcfHeader.ParameterCount = parameterCount
+
+        var message = Data()
+
+        // Append header
+        withUnsafeBytes(of: &pcfHeader) { buffer in
+            message.append(contentsOf: buffer)
+        }
+
+        // Add MQCA_Q_NAME parameter (string parameter for queue name)
+        var qNameParam = MQCFST()
+        qNameParam.Type = MQCFT_STRING
+        qNameParam.StrucLength = MQCFST_STRUC_LENGTH_FIXED + Int32(MQ_Q_NAME_LENGTH)
+        qNameParam.Parameter = MQCA_Q_NAME
+        qNameParam.CodedCharSetId = MQCCSI_DEFAULT
+        qNameParam.StringLength = Int32(MQ_Q_NAME_LENGTH)
+
+        withUnsafeBytes(of: &qNameParam) { buffer in
+            // Only append up to the String field (before the actual string data)
+            message.append(contentsOf: buffer.prefix(MemoryLayout<MQCFST>.size - MemoryLayout<MQCHAR>.size))
+        }
+
+        // Append the queue name string (space-padded to 48 chars)
+        let queueNameChars = queueName.toMQCharArray(length: Int(MQ_Q_NAME_LENGTH))
+        message.append(contentsOf: queueNameChars.map { UInt8(bitPattern: $0) })
+
+        // Add MQIA_Q_TYPE parameter (integer parameter for queue type)
+        var qTypeParam = MQCFIN()
+        qTypeParam.Type = MQCFT_INTEGER
+        qTypeParam.StrucLength = MQCFIN_STRUC_LENGTH
+        qTypeParam.Parameter = MQIA_Q_TYPE
+        qTypeParam.Value = queueType.rawValue
+
+        withUnsafeBytes(of: &qTypeParam) { buffer in
+            message.append(contentsOf: buffer)
+        }
+
+        // Add MQIA_MAX_Q_DEPTH parameter if specified
+        if let maxDepth = maxDepth {
+            var maxDepthParam = MQCFIN()
+            maxDepthParam.Type = MQCFT_INTEGER
+            maxDepthParam.StrucLength = MQCFIN_STRUC_LENGTH
+            maxDepthParam.Parameter = MQIA_MAX_Q_DEPTH
+            maxDepthParam.Value = maxDepth
+
+            withUnsafeBytes(of: &maxDepthParam) { buffer in
+                message.append(contentsOf: buffer)
+            }
+        }
+
+        return message
+    }
+
+    /// Receive and validate PCF response for queue creation
+    /// - Parameter replyObjectHandle: Handle to the reply queue
+    /// - Throws: MQError if the queue creation failed
+    private func receivePCFCreateQueueResponse(replyObjectHandle: MQHOBJ) throws {
+        var compCode: MQLONG = MQCC_OK
+        var reason: MQLONG = MQRC_NONE
+
+        // Message descriptor
+        var messageDescriptor = MQMD()
+        messageDescriptor.Version = MQMD_VERSION_2
+
+        // Get message options
+        var getOptions = MQGMO()
+        getOptions.Version = MQGMO_VERSION_2
+        getOptions.Options = MQGMO_NO_SYNCPOINT | MQGMO_WAIT | MQGMO_CONVERT
+        getOptions.WaitInterval = 30000 // 30 second timeout for admin commands
+        getOptions.MatchOptions = MQMO_NONE
+
+        // Buffer for response
+        var buffer = [UInt8](repeating: 0, count: 65536)
+        var dataLength: MQLONG = 0
+
+        MQGET(
+            connectionHandle,
+            replyObjectHandle,
+            &messageDescriptor,
+            &getOptions,
+            MQLONG(buffer.count),
+            &buffer,
+            &dataLength,
+            &compCode,
+            &reason
+        )
+
+        if reason == MQRC_NO_MSG_AVAILABLE {
+            throw MQError.operationFailed(
+                operation: "Create queue (no response received)",
+                completionCode: MQCC_FAILED,
+                reasonCode: reason
+            )
+        }
+
+        guard compCode != MQCC_FAILED else {
+            throw MQError.operationFailed(
+                operation: "MQGET(PCF create queue response)",
+                completionCode: compCode,
+                reasonCode: reason
+            )
+        }
+
+        // Parse the PCF response header to check for errors
+        let responseData = Data(buffer.prefix(Int(dataLength)))
+        try validatePCFResponse(data: responseData, operation: "Create queue")
+    }
+
+    /// Validate a PCF response for success or error
+    /// - Parameters:
+    ///   - data: The PCF response data
+    ///   - operation: Description of the operation for error messages
+    /// - Throws: MQError if the PCF response indicates failure
+    private func validatePCFResponse(data: Data, operation: String) throws {
+        guard data.count >= MemoryLayout<MQCFH>.size else {
+            throw MQError.operationFailed(
+                operation: operation,
+                completionCode: MQCC_FAILED,
+                reasonCode: MQRC_UNEXPECTED_ERROR
+            )
+        }
+
+        // Read the completion code and reason from the PCF header
+        // CompCode is at offset 24, Reason is at offset 28 in MQCFH
+        let pcfCompCode: Int32 = data.withUnsafeBytes { ptr in
+            ptr.load(fromByteOffset: 24, as: Int32.self)
+        }
+        let pcfReason: Int32 = data.withUnsafeBytes { ptr in
+            ptr.load(fromByteOffset: 28, as: Int32.self)
+        }
+
+        guard pcfCompCode != MQCC_FAILED else {
+            throw MQError.operationFailed(
+                operation: operation,
+                completionCode: pcfCompCode,
+                reasonCode: pcfReason
+            )
+        }
     }
 }
 

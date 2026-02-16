@@ -202,6 +202,14 @@ typedef MQLONG MQHOBJ;
 #define MQCFC_NOT_LAST 0
 
 #define MQCMD_INQUIRE_Q 13
+#define MQCMD_CREATE_Q 5
+#define MQCMD_DELETE_Q 6
+#define MQCMD_CHANGE_Q 8
+
+// MARK: - Additional Reason Codes
+
+#define MQRC_UNEXPECTED_ERROR 2195
+#define MQRC_OBJECT_ALREADY_EXISTS 2041
 
 // MARK: - Structures
 

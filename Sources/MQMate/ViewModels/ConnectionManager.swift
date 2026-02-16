@@ -555,4 +555,27 @@ public final class MockMQService: MQServiceProtocol {
 
         return simulatedQueues
     }
+
+    public func createQueue(queueName: String, queueType: MQQueueType, maxDepth: Int32?) async throws {
+        // Simulate network delay
+        try await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
+
+        guard isConnected else {
+            throw MQError.notConnected
+        }
+
+        // Check if queue already exists
+        if simulatedQueues.contains(where: { $0.name == queueName }) {
+            throw MQError.operationFailed(operation: "Create queue", completionCode: 2, reasonCode: 2041)
+        }
+
+        // Add the new queue
+        let newQueue = MQService.QueueInfo(
+            name: queueName,
+            queueType: queueType,
+            currentDepth: 0,
+            maxDepth: maxDepth ?? 5000
+        )
+        simulatedQueues.append(newQueue)
+    }
 }

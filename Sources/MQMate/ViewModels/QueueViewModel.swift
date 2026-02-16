@@ -448,4 +448,8 @@ private final class PreviewMQService: MQServiceProtocol {
             MQService.QueueInfo(name: "DEV.QUEUE.3", queueType: .local, currentDepth: 142, maxDepth: 5000)
         ]
     }
+
+    func createQueue(queueName: String, queueType: MQQueueType, maxDepth: Int32?) async throws {
+        // Mock implementation - does nothing
+    }
 }

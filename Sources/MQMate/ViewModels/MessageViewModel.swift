@@ -547,6 +547,10 @@ private final class PreviewMessageMQService: MQServiceProtocol {
         ]
     }
 
+    func createQueue(queueName: String, queueType: MQQueueType, maxDepth: Int32?) async throws {
+        // Mock implementation - does nothing
+    }
+
     func browseMessages(queueName: String, maxMessages: Int) async throws -> [MQService.MQMessage] {
         // Return sample messages converted to MQService.MQMessage format
         return Message.samples.prefix(maxMessages).map { message in
