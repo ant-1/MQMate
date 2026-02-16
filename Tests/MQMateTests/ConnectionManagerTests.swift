@@ -482,6 +482,7 @@ final class ConnectionManagerTests: XCTestCase {
         try await connectionManager.connect(id: config.id)
         // After connect, queues should be loaded
         let queuesBeforeDisconnect = connectionManager.queues(for: config.id)
+        XCTAssertFalse(queuesBeforeDisconnect.isEmpty, "Queues should be loaded after connect")
 
         // When
         connectionManager.disconnect(id: config.id)
@@ -549,16 +550,16 @@ final class ConnectionManagerTests: XCTestCase {
         XCTAssertFalse(connectionManager.isConnected(id: config.id))
     }
 
-    func testToggleConnectionCreatesNewQueueManager() async throws {
-        // Given
+    func testToggleConnectionConnectsAndCreatesQueueManager() async throws {
+        // Given - a new connection that hasn't been connected yet
         let config = createTestConfig(name: "Test")
         try connectionManager.addConnection(config, password: "test")
-        connectionManager.queueManagers.removeValue(forKey: config.id) // Simulate no queue manager
+        XCTAssertFalse(connectionManager.isConnected(id: config.id))
 
-        // When
+        // When - toggle should connect since it's currently disconnected
         try await connectionManager.toggleConnection(id: config.id)
 
-        // Then
+        // Then - should be connected with a queue manager
         XCTAssertNotNil(connectionManager.queueManagers[config.id])
         XCTAssertTrue(connectionManager.isConnected(id: config.id))
     }
