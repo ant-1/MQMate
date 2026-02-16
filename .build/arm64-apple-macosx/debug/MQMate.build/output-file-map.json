@@ -128,6 +128,13 @@
     "swift-dependencies": "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/MessageRowView.swiftdeps",
     "diagnostics": "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/MessageRowView.dia"
   },
+  "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/Sources/MQMate/Views/Components/QueueFormView.swift": {
+    "dependencies": "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/QueueFormView.d",
+    "object": "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/QueueFormView.swift.o",
+    "swiftmodule": "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/QueueFormView~partial.swiftmodule",
+    "swift-dependencies": "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/QueueFormView.swiftdeps",
+    "diagnostics": "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/QueueFormView.dia"
+  },
   "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/Sources/MQMate/Views/Components/QueueRowView.swift": {
     "dependencies": "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/QueueRowView.d",
     "object": "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/QueueRowView.swift.o",
