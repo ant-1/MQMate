@@ -252,10 +252,11 @@ final class ModelTests: XCTestCase {
     // MARK: - Queue Protocol Conformance Tests
 
     func testQueueEquatable() {
-        // Given
-        let queue1 = Queue(name: "TEST.QUEUE", depth: 100)
-        let queue2 = Queue(name: "TEST.QUEUE", depth: 100)
-        let queue3 = Queue(name: "OTHER.QUEUE", depth: 100)
+        // Given - use explicit date to ensure equality
+        let fixedDate = Date(timeIntervalSince1970: 0)
+        let queue1 = Queue(name: "TEST.QUEUE", depth: 100, lastRefreshedAt: fixedDate)
+        let queue2 = Queue(name: "TEST.QUEUE", depth: 100, lastRefreshedAt: fixedDate)
+        let queue3 = Queue(name: "OTHER.QUEUE", depth: 100, lastRefreshedAt: fixedDate)
 
         // Then
         XCTAssertEqual(queue1, queue2)
