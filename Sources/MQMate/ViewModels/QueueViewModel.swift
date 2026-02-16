@@ -359,6 +359,25 @@ public final class QueueViewModel {
         }
     }
 
+    /// Create a new queue
+    /// - Parameters:
+    ///   - queueName: Name of the queue to create
+    ///   - queueType: Type of queue to create
+    ///   - maxDepth: Optional maximum depth for the queue
+    /// - Throws: MQError if the operation fails
+    public func createQueue(queueName: String, queueType: MQQueueType, maxDepth: Int32? = nil) async throws {
+        do {
+            try await mqService.createQueue(queueName: queueName, queueType: queueType, maxDepth: maxDepth)
+
+            // Refresh queue list to show the new queue
+            try await refresh()
+        } catch {
+            lastError = error
+            showErrorAlert = true
+            throw error
+        }
+    }
+
     // MARK: - Error Handling
 
     /// Clear the last error

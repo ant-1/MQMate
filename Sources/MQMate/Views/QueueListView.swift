@@ -35,6 +35,9 @@ struct QueueListView: View {
     /// Operation in progress indicator
     @State private var isOperationInProgress = false
 
+    /// Show create queue sheet
+    @State private var showCreateQueueSheet = false
+
     // MARK: - Body
 
     var body: some View {
@@ -57,10 +60,25 @@ struct QueueListView: View {
         )
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
+                newQueueButton
                 sortButton
                 refreshButton
                 filterButton
             }
+        }
+        .sheet(isPresented: $showCreateQueueSheet) {
+            QueueFormView(
+                mode: .add,
+                onSave: { queueName, queueType in
+                    Task {
+                        await performCreateQueue(name: queueName, type: queueType)
+                    }
+                    showCreateQueueSheet = false
+                },
+                onCancel: {
+                    showCreateQueueSheet = false
+                }
+            )
         }
         .alert(
             "Error Loading Queues",
@@ -154,6 +172,18 @@ struct QueueListView: View {
         .padding(.horizontal)
         .padding(.vertical, 8)
         .background(.bar)
+    }
+
+    /// New queue button
+    private var newQueueButton: some View {
+        Button {
+            showCreateQueueSheet = true
+        } label: {
+            Image(systemName: "plus")
+        }
+        .help("New Queue (⌘N)")
+        .keyboardShortcut("n", modifiers: .command)
+        .disabled(queueViewModel.isLoading || isOperationInProgress)
     }
 
     /// Sort order button
@@ -339,6 +369,26 @@ struct QueueListView: View {
 
             // Refresh queue list to reflect changes
             try? await queueViewModel.refresh()
+        } catch {
+            // Error is already handled by QueueViewModel (sets lastError and showErrorAlert)
+        }
+    }
+
+    /// Perform queue create with audit logging
+    private func performCreateQueue(name: String, type: MQQueueType) async {
+        isOperationInProgress = true
+        defer { isOperationInProgress = false }
+
+        do {
+            try await queueViewModel.createQueue(queueName: name, queueType: type)
+
+            // Log to audit service
+            AuditService.shared.logQueueCreated(
+                queueName: name,
+                queueType: type.displayName,
+                queueManager: queueManagerName,
+                username: nil
+            )
         } catch {
             // Error is already handled by QueueViewModel (sets lastError and showErrorAlert)
         }
