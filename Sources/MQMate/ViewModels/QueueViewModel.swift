@@ -321,6 +321,44 @@ public final class QueueViewModel {
         sortOrder = sortOrder.next
     }
 
+    // MARK: - Queue Operations
+
+    /// Purge all messages from a queue
+    /// - Parameter queueName: Name of the queue to purge
+    /// - Returns: Number of messages removed
+    /// - Throws: MQError if the operation fails
+    public func purgeQueue(queueName: String) async throws -> Int {
+        do {
+            let messageCount = try await mqService.purgeQueue(queueName: queueName)
+            return messageCount
+        } catch {
+            lastError = error
+            showErrorAlert = true
+            throw error
+        }
+    }
+
+    /// Delete a queue
+    /// - Parameter queueName: Name of the queue to delete
+    /// - Throws: MQError if the operation fails
+    public func deleteQueue(queueName: String) async throws {
+        do {
+            try await mqService.deleteQueue(queueName: queueName)
+
+            // Remove from local list
+            queues.removeAll { $0.name == queueName }
+
+            // Clear selection if deleted queue was selected
+            if selectedQueueId == queueName {
+                selectedQueueId = nil
+            }
+        } catch {
+            lastError = error
+            showErrorAlert = true
+            throw error
+        }
+    }
+
     // MARK: - Error Handling
 
     /// Clear the last error

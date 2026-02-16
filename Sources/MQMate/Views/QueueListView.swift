@@ -14,8 +14,26 @@ struct QueueListView: View {
     /// Binding to the selected queue ID (queue name)
     @Binding var selection: String?
 
+    /// Optional queue manager name for audit logging
+    var queueManagerName: String?
+
     /// Show sort picker popover
     @State private var showSortPicker = false
+
+    /// Queue selected for purge operation (for confirmation dialog)
+    @State private var queueToPurge: Queue?
+
+    /// Show purge confirmation dialog
+    @State private var showPurgeConfirmation = false
+
+    /// Queue selected for delete operation (for confirmation dialog)
+    @State private var queueToDelete: Queue?
+
+    /// Show delete confirmation dialog
+    @State private var showDeleteConfirmation = false
+
+    /// Operation in progress indicator
+    @State private var isOperationInProgress = false
 
     // MARK: - Body
 
@@ -54,6 +72,26 @@ struct QueueListView: View {
             }
         } message: { error in
             Text(error.localizedDescription)
+        }
+        .confirmationDialog(
+            "Purge Queue?",
+            isPresented: $showPurgeConfirmation,
+            titleVisibility: .visible,
+            presenting: queueToPurge
+        ) { queue in
+            purgeConfirmationButtons(for: queue)
+        } message: { queue in
+            Text("Are you sure you want to purge all \(queue.depth) message\(queue.depth == 1 ? "" : "s") from \"\(queue.name)\"? This action cannot be undone.")
+        }
+        .confirmationDialog(
+            "Delete Queue?",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible,
+            presenting: queueToDelete
+        ) { queue in
+            deleteConfirmationButtons(for: queue)
+        } message: { queue in
+            Text("Are you sure you want to delete the queue \"\(queue.name)\"? This action cannot be undone.")
         }
     }
 
@@ -202,6 +240,107 @@ struct QueueListView: View {
             if queue.getInhibited {
                 Label("Get Inhibited", systemImage: "arrow.up.circle.dotted")
             }
+        }
+
+        // Destructive actions section
+        Divider()
+
+        // Purge queue option (only for local queues with messages)
+        if queue.queueType == .local && queue.hasMessages {
+            Button(role: .destructive) {
+                queueToPurge = queue
+                showPurgeConfirmation = true
+            } label: {
+                Label("Purge All Messages...", systemImage: "trash")
+            }
+            .disabled(isOperationInProgress)
+        }
+
+        // Delete queue option (only for local queues)
+        if queue.queueType == .local {
+            Button(role: .destructive) {
+                queueToDelete = queue
+                showDeleteConfirmation = true
+            } label: {
+                Label("Delete Queue...", systemImage: "xmark.bin")
+            }
+            .disabled(isOperationInProgress || queue.isInUse)
+        }
+    }
+
+    // MARK: - Confirmation Dialog Buttons
+
+    /// Purge confirmation buttons
+    @ViewBuilder
+    private func purgeConfirmationButtons(for queue: Queue) -> some View {
+        Button("Purge \(queue.depth) Message\(queue.depth == 1 ? "" : "s")", role: .destructive) {
+            Task {
+                await performPurgeQueue(queue)
+            }
+        }
+        Button("Cancel", role: .cancel) {}
+    }
+
+    /// Delete confirmation buttons
+    @ViewBuilder
+    private func deleteConfirmationButtons(for queue: Queue) -> some View {
+        Button("Delete Queue", role: .destructive) {
+            Task {
+                await performDeleteQueue(queue)
+            }
+        }
+        Button("Cancel", role: .cancel) {}
+    }
+
+    // MARK: - Destructive Actions
+
+    /// Perform queue purge with audit logging
+    private func performPurgeQueue(_ queue: Queue) async {
+        isOperationInProgress = true
+        defer { isOperationInProgress = false }
+
+        do {
+            let messageCount = try await queueViewModel.purgeQueue(queueName: queue.name)
+
+            // Log to audit service
+            AuditService.shared.logQueuePurged(
+                queueName: queue.name,
+                messageCount: messageCount,
+                queueManager: queueManagerName,
+                username: nil
+            )
+
+            // Refresh queue list to reflect changes
+            try? await queueViewModel.refresh()
+        } catch {
+            // Error is already handled by QueueViewModel (sets lastError and showErrorAlert)
+        }
+    }
+
+    /// Perform queue delete with audit logging
+    private func performDeleteQueue(_ queue: Queue) async {
+        isOperationInProgress = true
+        defer { isOperationInProgress = false }
+
+        // Clear selection if deleting the selected queue
+        if selection == queue.id {
+            selection = nil
+        }
+
+        do {
+            try await queueViewModel.deleteQueue(queueName: queue.name)
+
+            // Log to audit service
+            AuditService.shared.logQueueDeleted(
+                queueName: queue.name,
+                queueManager: queueManagerName,
+                username: nil
+            )
+
+            // Refresh queue list to reflect changes
+            try? await queueViewModel.refresh()
+        } catch {
+            // Error is already handled by QueueViewModel (sets lastError and showErrorAlert)
         }
     }
 }

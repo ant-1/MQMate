@@ -3,23 +3,23 @@
   "spec": "002-restart-from-scratch-the-project-with-the-followin",
   "state": "building",
   "subtasks": {
-    "completed": 15,
+    "completed": 16,
     "total": 24,
     "in_progress": 1,
     "failed": 0
   },
   "phase": {
-    "current": "UI Components for CRUD",
+    "current": "Confirmation Dialogs for Destructive Actions",
     "id": null,
-    "total": 2
+    "total": 4
   },
   "workers": {
     "active": 0,
     "max": 1
   },
   "session": {
-    "number": 16,
+    "number": 17,
     "started_at": "2026-02-16T23:27:11.304940"
   },
-  "last_update": "2026-02-17T00:04:49.328944"
+  "last_update": "2026-02-17T00:06:49.743895"
 }
