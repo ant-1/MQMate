@@ -405,6 +405,36 @@ public final class MessageViewModel {
         messages.first { $0.id == id }
     }
 
+    // MARK: - Message Operations
+
+    /// Delete a message from the current queue
+    /// - Parameters:
+    ///   - messageId: The message ID bytes of the message to delete
+    /// - Throws: MQError if deletion fails
+    public func deleteMessage(messageId: [UInt8]) async throws {
+        guard let queueName = currentQueueName else {
+            throw MQError.notConnected
+        }
+
+        do {
+            try await mqService.deleteMessage(queueName: queueName, messageId: messageId)
+
+            // Remove the message from the local array
+            messages.removeAll { $0.messageId == messageId }
+
+            // If the deleted message was selected, clear selection
+            let deletedId = messageId.map { String(format: "%02X", $0) }.joined()
+            if selectedMessageId == deletedId {
+                selectedMessageId = nil
+            }
+
+        } catch {
+            lastError = error
+            showErrorAlert = true
+            throw error
+        }
+    }
+
     // MARK: - Error Handling
 
     /// Clear the last error

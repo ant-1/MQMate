@@ -24,6 +24,15 @@ struct MessageBrowserView: View {
     /// Inspector visibility for message detail
     @State private var showInspector = true
 
+    /// Message selected for delete operation (for confirmation dialog)
+    @State private var messageToDelete: Message?
+
+    /// Show delete confirmation dialog
+    @State private var showDeleteConfirmation = false
+
+    /// Operation in progress indicator
+    @State private var isOperationInProgress = false
+
     // MARK: - Body
 
     var body: some View {
@@ -82,6 +91,16 @@ struct MessageBrowserView: View {
             }
         } message: { error in
             Text(error.localizedDescription)
+        }
+        .confirmationDialog(
+            "Delete Message?",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible,
+            presenting: messageToDelete
+        ) { message in
+            deleteConfirmationButtons(for: message)
+        } message: { message in
+            Text("Are you sure you want to delete this message from \"\(queueName)\"? This action cannot be undone.\n\nMessage ID: \(message.messageIdShort)...")
         }
     }
 
@@ -258,6 +277,57 @@ struct MessageBrowserView: View {
         if message.persistence == .persistent {
             Divider()
             Label("Persistent", systemImage: "externaldrive.fill")
+        }
+
+        // Destructive actions section
+        Divider()
+
+        Button(role: .destructive) {
+            messageToDelete = message
+            showDeleteConfirmation = true
+        } label: {
+            Label("Delete Message...", systemImage: "trash")
+        }
+        .disabled(isOperationInProgress)
+    }
+
+    // MARK: - Confirmation Dialog Buttons
+
+    /// Delete confirmation buttons
+    @ViewBuilder
+    private func deleteConfirmationButtons(for message: Message) -> some View {
+        Button("Delete Message", role: .destructive) {
+            Task {
+                await performDeleteMessage(message)
+            }
+        }
+        Button("Cancel", role: .cancel) {}
+    }
+
+    // MARK: - Destructive Actions
+
+    /// Perform message delete with audit logging
+    private func performDeleteMessage(_ message: Message) async {
+        isOperationInProgress = true
+        defer { isOperationInProgress = false }
+
+        // Clear selection if deleting the selected message
+        if selection == message.id {
+            selection = nil
+        }
+
+        do {
+            try await messageViewModel.deleteMessage(messageId: message.messageId)
+
+            // Log to audit service
+            AuditService.shared.logMessageDeleted(
+                messageId: message.messageIdHex,
+                queueName: queueName,
+                queueManager: nil,
+                username: nil
+            )
+        } catch {
+            // Error is already handled by MessageViewModel (sets lastError and showErrorAlert)
         }
     }
 
