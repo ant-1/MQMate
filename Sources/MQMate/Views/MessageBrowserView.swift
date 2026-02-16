@@ -33,6 +33,9 @@ struct MessageBrowserView: View {
     /// Operation in progress indicator
     @State private var isOperationInProgress = false
 
+    /// Show message composer sheet
+    @State private var showMessageComposer = false
+
     // MARK: - Body
 
     var body: some View {
@@ -58,6 +61,7 @@ struct MessageBrowserView: View {
         )
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
+                sendMessageButton
                 sortButton
                 refreshButton
                 inspectorToggle
@@ -101,6 +105,25 @@ struct MessageBrowserView: View {
             deleteConfirmationButtons(for: message)
         } message: { message in
             Text("Are you sure you want to delete this message from \"\(queueName)\"? This action cannot be undone.\n\nMessage ID: \(message.messageIdShort)...")
+        }
+        .sheet(isPresented: $showMessageComposer) {
+            MessageComposerView(
+                queueName: queueName,
+                onSend: { payload, messageType, persistence, priority in
+                    showMessageComposer = false
+                    Task {
+                        await performSendMessage(
+                            payload: payload,
+                            messageType: messageType,
+                            persistence: persistence,
+                            priority: priority
+                        )
+                    }
+                },
+                onCancel: {
+                    showMessageComposer = false
+                }
+            )
         }
     }
 
@@ -237,6 +260,18 @@ struct MessageBrowserView: View {
         .keyboardShortcut("i", modifiers: [.command, .option])
     }
 
+    /// Send message button
+    private var sendMessageButton: some View {
+        Button {
+            showMessageComposer = true
+        } label: {
+            Image(systemName: "square.and.pencil")
+        }
+        .help("Send Message (⌘⇧N)")
+        .keyboardShortcut("n", modifiers: [.command, .shift])
+        .disabled(!messageViewModel.hasBrowsedQueue || isOperationInProgress)
+    }
+
     /// Context menu for message row
     @ViewBuilder
     private func messageContextMenu(for message: Message) -> some View {
@@ -323,6 +358,36 @@ struct MessageBrowserView: View {
             AuditService.shared.logMessageDeleted(
                 messageId: message.messageIdHex,
                 queueName: queueName,
+                queueManager: nil,
+                username: nil
+            )
+        } catch {
+            // Error is already handled by MessageViewModel (sets lastError and showErrorAlert)
+        }
+    }
+
+    /// Perform message send with audit logging
+    private func performSendMessage(
+        payload: Data,
+        messageType: MessageType,
+        persistence: MessagePersistence,
+        priority: Int32
+    ) async {
+        isOperationInProgress = true
+        defer { isOperationInProgress = false }
+
+        do {
+            _ = try await messageViewModel.sendMessage(
+                payload: payload,
+                messageType: messageType,
+                persistence: persistence,
+                priority: priority
+            )
+
+            // Log to audit service
+            AuditService.shared.logMessageSent(
+                queueName: queueName,
+                messageSize: payload.count,
                 queueManager: nil,
                 username: nil
             )

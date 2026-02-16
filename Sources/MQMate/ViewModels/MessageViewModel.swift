@@ -435,6 +435,48 @@ public final class MessageViewModel {
         }
     }
 
+    /// Send a message to the current queue
+    /// - Parameters:
+    ///   - payload: The message payload data
+    ///   - messageType: The type of message (datagram, request, etc.)
+    ///   - persistence: Message persistence option
+    ///   - priority: Message priority (0-9)
+    /// - Returns: The message ID of the sent message
+    /// - Throws: MQError if sending fails
+    @discardableResult
+    public func sendMessage(
+        payload: Data,
+        messageType: MessageType,
+        persistence: MessagePersistence,
+        priority: Int32
+    ) async throws -> [UInt8] {
+        guard let queueName = currentQueueName else {
+            throw MQError.notConnected
+        }
+
+        do {
+            let messageId = try await mqService.sendMessage(
+                queueName: queueName,
+                payload: payload,
+                correlationId: nil,
+                replyToQueue: nil,
+                messageType: MQService.MQMessageType(rawValue: messageType.rawValue),
+                persistence: MQService.MQMessagePersistence(rawValue: persistence.rawValue),
+                priority: priority
+            )
+
+            // Refresh messages to show the new message
+            try? await refresh()
+
+            return messageId
+
+        } catch {
+            lastError = error
+            showErrorAlert = true
+            throw error
+        }
+    }
+
     // MARK: - Error Handling
 
     /// Clear the last error
