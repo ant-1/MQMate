@@ -3,13 +3,13 @@
   "spec": "002-restart-from-scratch-the-project-with-the-followin",
   "state": "building",
   "subtasks": {
-    "completed": 19,
+    "completed": 21,
     "total": 24,
     "in_progress": 1,
     "failed": 0
   },
   "phase": {
-    "current": "Confirmation Dialogs for Destructive Actions",
+    "current": "Build Scripts and Final Verification",
     "id": null,
     "total": 4
   },
@@ -18,8 +18,8 @@
     "max": 1
   },
   "session": {
-    "number": 20,
+    "number": 22,
     "started_at": "2026-02-16T23:27:11.304940"
   },
-  "last_update": "2026-02-17T00:13:37.583727"
+  "last_update": "2026-02-17T00:17:24.952493"
 }
