@@ -64,6 +64,10 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/Sources/MQMate/Services/AuditService.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/Sources/MQMate/Services/KeychainService.swift"
         },
         {
@@ -132,6 +136,7 @@
         "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/Message.swift.o",
         "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/Queue.swift.o",
         "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/QueueManager.swift.o",
+        "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/AuditService.swift.o",
         "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/KeychainService.swift.o",
         "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/MQService.swift.o",
         "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/ConnectionManager.swift.o",
@@ -242,6 +247,10 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/AuditService.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/KeychainService.swift.o"
         },
         {
@@ -304,6 +313,7 @@
         "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/Sources/MQMate/Models/Message.swift",
         "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/Sources/MQMate/Models/Queue.swift",
         "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/Sources/MQMate/Models/QueueManager.swift",
+        "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/Sources/MQMate/Services/AuditService.swift",
         "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/Sources/MQMate/Services/KeychainService.swift",
         "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/Sources/MQMate/Services/MQService.swift",
         "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/Sources/MQMate/ViewModels/ConnectionManager.swift",
@@ -566,6 +576,7 @@
       "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/Sources/MQMate/Models/Message.swift",
       "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/Sources/MQMate/Models/Queue.swift",
       "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/Sources/MQMate/Models/QueueManager.swift",
+      "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/Sources/MQMate/Services/AuditService.swift",
       "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/Sources/MQMate/Services/KeychainService.swift",
       "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/Sources/MQMate/Services/MQService.swift",
       "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/Sources/MQMate/ViewModels/ConnectionManager.swift",
@@ -871,6 +882,10 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/Sources/MQMate/Services/AuditService.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/Sources/MQMate/Services/KeychainService.swift"
         },
         {
@@ -930,6 +945,10 @@
         {
           "kind" : "file",
           "name" : "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/AuditEntry.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/AuditService.swift.o"
         },
         {
           "kind" : "file",
@@ -1038,6 +1057,10 @@
         {
           "kind" : "file",
           "name" : "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/AuditEntry.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.build/arm64-apple-macosx/debug/MQMate.build/AuditService.swift.o"
         },
         {
           "kind" : "file",
