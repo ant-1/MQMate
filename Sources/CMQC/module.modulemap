@@ -1,0 +1,7 @@
+// CMQC Module Map - Stub for Package.swift validation
+// Full implementation in subtask-1-2
+module CMQC [system] {
+    header "shim.h"
+    link "mqic_r"
+    export *
+}
