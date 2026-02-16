@@ -365,7 +365,7 @@ struct ConnectionFormView: View {
     private func buildConnectionConfig() -> ConnectionConfig {
         if let original = originalConfig {
             // Edit mode - preserve the original ID and dates
-            var config = ConnectionConfig(
+            let config = ConnectionConfig(
                 id: original.id,
                 name: name.trimmingCharacters(in: .whitespaces),
                 queueManager: queueManager.trimmingCharacters(in: .whitespaces).uppercased(),

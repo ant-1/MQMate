@@ -470,7 +470,7 @@ struct MessageDetailView: View {
             }
 
             // Put timestamp
-            if let putDate = message.putDateTime {
+            if message.putDateTime != nil {
                 LabeledContent {
                     VStack(alignment: .trailing) {
                         Text(message.putDateTimeFormatted)
