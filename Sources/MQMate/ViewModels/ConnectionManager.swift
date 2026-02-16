@@ -652,4 +652,20 @@ public final class MockMQService: MQServiceProtocol {
         }
         return messageId
     }
+
+    public func deleteMessage(queueName: String, messageId: [UInt8]) async throws {
+        // Simulate network delay
+        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+
+        guard isConnected else {
+            throw MQError.notConnected
+        }
+
+        // Check if queue exists
+        guard simulatedQueues.contains(where: { $0.name == queueName }) else {
+            throw MQError.operationFailed(operation: "Delete message", completionCode: 2, reasonCode: 2085)
+        }
+
+        // Mock implementation - pretend message was deleted successfully
+    }
 }

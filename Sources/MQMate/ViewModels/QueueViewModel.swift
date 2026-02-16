@@ -478,4 +478,8 @@ private final class PreviewMQService: MQServiceProtocol {
         }
         return messageId
     }
+
+    func deleteMessage(queueName: String, messageId: [UInt8]) async throws {
+        // Mock implementation - does nothing
+    }
 }

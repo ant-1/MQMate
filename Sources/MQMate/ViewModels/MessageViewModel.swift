@@ -597,6 +597,10 @@ private final class PreviewMessageMQService: MQServiceProtocol {
             )
         }
     }
+
+    func deleteMessage(queueName: String, messageId: [UInt8]) async throws {
+        // Mock implementation - does nothing
+    }
 }
 
 // MARK: - MQServiceProtocol Extension

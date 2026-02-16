@@ -47,6 +47,9 @@ public protocol MQServiceProtocol {
         persistence: MQService.MQMessagePersistence,
         priority: Int32?
     ) async throws -> [UInt8]
+
+    /// Delete a specific message from a queue using destructive MQGET with message ID match
+    func deleteMessage(queueName: String, messageId: [UInt8]) async throws
 }
 
 // MARK: - MQ Service Implementation
@@ -2064,6 +2067,129 @@ public final class MQService: MQServiceProtocol {
         }
 
         return messageId
+    }
+
+    // MARK: - Message Delete Operations
+
+    /// Delete a specific message from a queue using destructive MQGET with message ID match
+    /// - Parameters:
+    ///   - queueName: Name of the queue containing the message
+    ///   - messageId: The message ID of the message to delete (24 bytes)
+    /// - Throws: MQError if deletion fails or message not found
+    public func deleteMessage(queueName: String, messageId: [UInt8]) async throws {
+        guard isConnected else {
+            throw MQError.notConnected
+        }
+
+        // Validate queue name
+        guard !queueName.isEmpty else {
+            throw MQError.invalidConfiguration(message: "Queue name cannot be empty")
+        }
+
+        // Validate message ID
+        guard !messageId.isEmpty else {
+            throw MQError.invalidConfiguration(message: "Message ID cannot be empty")
+        }
+
+        // Open queue for destructive input
+        var objectHandle = try openQueue(
+            queueName: queueName,
+            options: MQOO_INPUT_SHARED | MQOO_FAIL_IF_QUIESCING
+        )
+
+        defer {
+            closeQueue(&objectHandle)
+        }
+
+        try performDeleteMessage(
+            objectHandle: objectHandle,
+            queueName: queueName,
+            messageId: messageId
+        )
+    }
+
+    /// Perform the destructive MQGET with message ID matching
+    /// - Parameters:
+    ///   - objectHandle: Handle to the open queue
+    ///   - queueName: Name of the queue (for error messages)
+    ///   - messageId: The message ID to match
+    /// - Throws: MQError if deletion fails or message not found
+    private func performDeleteMessage(
+        objectHandle: MQHOBJ,
+        queueName: String,
+        messageId: [UInt8]
+    ) throws {
+        var compCode: MQLONG = MQCC_OK
+        var reason: MQLONG = MQRC_NONE
+
+        // Initialize message descriptor
+        var messageDescriptor = MQMD()
+        messageDescriptor.Version = MQMD_VERSION_2
+
+        // Set the message ID to match
+        // Pad or truncate to exactly MQ_MSG_ID_LENGTH (24 bytes)
+        withUnsafeMutablePointer(to: &messageDescriptor.MsgId) { ptr in
+            let bound = ptr.withMemoryRebound(to: UInt8.self, capacity: Int(MQ_MSG_ID_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_MSG_ID_LENGTH) {
+                if i < messageId.count {
+                    bound[i] = messageId[i]
+                } else {
+                    bound[i] = 0x00
+                }
+            }
+        }
+
+        // Initialize get message options
+        var getOptions = MQGMO()
+        getOptions.Version = MQGMO_VERSION_2
+        // Use NO_SYNCPOINT for immediate removal, ACCEPT_TRUNCATED_MSG since we don't care about content
+        getOptions.Options = MQGMO_NO_SYNCPOINT | MQGMO_ACCEPT_TRUNCATED_MSG | MQGMO_FAIL_IF_QUIESCING
+        getOptions.WaitInterval = 0 // No wait - return immediately if no message
+        // Match on message ID only
+        getOptions.MatchOptions = MQMO_MATCH_MSG_ID
+
+        // Small buffer - we don't need the actual message content
+        var buffer = [UInt8](repeating: 0, count: 1)
+        var dataLength: MQLONG = 0
+
+        // Call MQGET to destructively read the message
+        MQGET(
+            connectionHandle,
+            objectHandle,
+            &messageDescriptor,
+            &getOptions,
+            MQLONG(buffer.count),
+            &buffer,
+            &dataLength,
+            &compCode,
+            &reason
+        )
+
+        // Check for message not found
+        if reason == MQRC_NO_MSG_AVAILABLE {
+            throw MQError.operationFailed(
+                operation: "Delete message (message not found in \(queueName))",
+                completionCode: MQCC_FAILED,
+                reasonCode: reason
+            )
+        }
+
+        // Handle truncation - this is expected since our buffer is minimal
+        if compCode == MQCC_WARNING && reason == MQRC_TRUNCATED_MSG_ACCEPTED {
+            // Message was successfully removed, just truncated in buffer
+            return
+        }
+
+        // Check for other errors
+        if compCode == MQCC_FAILED {
+            throw MQError.operationFailed(
+                operation: "MQGET(delete message from \(queueName))",
+                completionCode: compCode,
+                reasonCode: reason
+            )
+        }
+
+        // Message successfully removed
     }
 }
 
