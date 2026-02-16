@@ -461,4 +461,21 @@ private final class PreviewMQService: MQServiceProtocol {
         // Mock implementation - return 0 messages purged
         return 0
     }
+
+    func sendMessage(
+        queueName: String,
+        payload: Data,
+        correlationId: [UInt8]?,
+        replyToQueue: String?,
+        messageType: MQService.MQMessageType,
+        persistence: MQService.MQMessagePersistence,
+        priority: Int32?
+    ) async throws -> [UInt8] {
+        // Mock implementation - return a fake message ID
+        var messageId = [UInt8](repeating: 0, count: 24)
+        for i in 0..<24 {
+            messageId[i] = UInt8.random(in: 0...255)
+        }
+        return messageId
+    }
 }

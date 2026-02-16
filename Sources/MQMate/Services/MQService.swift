@@ -36,6 +36,17 @@ public protocol MQServiceProtocol {
 
     /// Purge all messages from a queue using destructive MQGET
     func purgeQueue(queueName: String) async throws -> Int
+
+    /// Send a message to a queue using MQPUT
+    func sendMessage(
+        queueName: String,
+        payload: Data,
+        correlationId: [UInt8]?,
+        replyToQueue: String?,
+        messageType: MQService.MQMessageType,
+        persistence: MQService.MQMessagePersistence,
+        priority: Int32?
+    ) async throws -> [UInt8]
 }
 
 // MARK: - MQ Service Implementation
@@ -945,6 +956,11 @@ public final class MQService: MQServiceProtocol {
             case .report: return "Report"
             case .unknown: return "Unknown"
             }
+        }
+
+        /// Returns the MQMT_* constant value for use in MQMD
+        public var mqValue: MQLONG {
+            return MQLONG(self.rawValue)
         }
     }
 
@@ -1879,6 +1895,175 @@ public final class MQService: MQServiceProtocol {
         }
 
         return purgedCount
+    }
+
+    // MARK: - Message Send Operations
+
+    /// Send a message to a queue using MQPUT
+    /// - Parameters:
+    ///   - queueName: Name of the queue to send to
+    ///   - payload: Message payload as Data
+    ///   - correlationId: Optional correlation ID (24 bytes, padded with zeros if shorter)
+    ///   - replyToQueue: Optional reply-to queue name
+    ///   - messageType: Type of message (datagram, request, reply, report)
+    ///   - persistence: Message persistence setting
+    ///   - priority: Optional message priority (0-9, nil uses queue default)
+    /// - Returns: The message ID assigned to the sent message (24 bytes)
+    /// - Throws: MQError if sending fails
+    public func sendMessage(
+        queueName: String,
+        payload: Data,
+        correlationId: [UInt8]? = nil,
+        replyToQueue: String? = nil,
+        messageType: MQMessageType = .datagram,
+        persistence: MQMessagePersistence = .asQueueDef,
+        priority: Int32? = nil
+    ) async throws -> [UInt8] {
+        guard isConnected else {
+            throw MQError.notConnected
+        }
+
+        // Validate queue name
+        guard !queueName.isEmpty else {
+            throw MQError.invalidConfiguration(message: "Queue name cannot be empty")
+        }
+
+        // Open queue for output
+        var objectHandle = try openQueue(
+            queueName: queueName,
+            options: MQOO_OUTPUT | MQOO_FAIL_IF_QUIESCING
+        )
+
+        defer {
+            closeQueue(&objectHandle)
+        }
+
+        return try performSendMessage(
+            objectHandle: objectHandle,
+            queueName: queueName,
+            payload: payload,
+            correlationId: correlationId,
+            replyToQueue: replyToQueue,
+            messageType: messageType,
+            persistence: persistence,
+            priority: priority
+        )
+    }
+
+    /// Perform the actual MQPUT operation
+    /// - Parameters:
+    ///   - objectHandle: Handle to the open queue
+    ///   - queueName: Name of the queue (for error messages)
+    ///   - payload: Message payload as Data
+    ///   - correlationId: Optional correlation ID
+    ///   - replyToQueue: Optional reply-to queue name
+    ///   - messageType: Type of message
+    ///   - persistence: Message persistence setting
+    ///   - priority: Optional message priority
+    /// - Returns: The message ID assigned to the sent message
+    /// - Throws: MQError if MQPUT fails
+    private func performSendMessage(
+        objectHandle: MQHOBJ,
+        queueName: String,
+        payload: Data,
+        correlationId: [UInt8]?,
+        replyToQueue: String?,
+        messageType: MQMessageType,
+        persistence: MQMessagePersistence,
+        priority: Int32?
+    ) throws -> [UInt8] {
+        var compCode: MQLONG = MQCC_OK
+        var reason: MQLONG = MQRC_NONE
+
+        // Initialize message descriptor
+        var messageDescriptor = MQMD()
+        messageDescriptor.Version = MQMD_VERSION_2
+
+        // Set format to MQSTR (string) for text messages
+        // Format is an 8-character field: "MQSTR   "
+        let formatChars: (MQCHAR, MQCHAR, MQCHAR, MQCHAR, MQCHAR, MQCHAR, MQCHAR, MQCHAR) = (
+            MQCHAR(0x4D), MQCHAR(0x51), MQCHAR(0x53), MQCHAR(0x54),
+            MQCHAR(0x52), MQCHAR(0x20), MQCHAR(0x20), MQCHAR(0x20)
+        )  // "MQSTR   "
+        messageDescriptor.Format = formatChars
+
+        // Set message type
+        messageDescriptor.MsgType = messageType.mqValue
+
+        // Set persistence
+        messageDescriptor.Persistence = persistence.rawValue
+
+        // Set priority (-1 means use queue default per MQPRI_PRIORITY_AS_Q_DEF)
+        if let priority = priority {
+            messageDescriptor.Priority = priority
+        } else {
+            messageDescriptor.Priority = -1 // MQPRI_PRIORITY_AS_Q_DEF
+        }
+
+        // Set correlation ID if provided
+        if let correlationId = correlationId {
+            withUnsafeMutablePointer(to: &messageDescriptor.CorrelId) { ptr in
+                let bound = ptr.withMemoryRebound(to: UInt8.self, capacity: Int(MQ_CORREL_ID_LENGTH)) { $0 }
+                for i in 0..<Int(MQ_CORREL_ID_LENGTH) {
+                    if i < correlationId.count {
+                        bound[i] = correlationId[i]
+                    } else {
+                        bound[i] = 0x00
+                    }
+                }
+            }
+        }
+
+        // Set reply-to queue if provided
+        if let replyToQueue = replyToQueue, !replyToQueue.isEmpty {
+            let replyToQueueChars = replyToQueue.toMQCharArray(length: Int(MQ_Q_NAME_LENGTH))
+            withUnsafeMutablePointer(to: &messageDescriptor.ReplyToQ) { ptr in
+                let bound = ptr.withMemoryRebound(to: MQCHAR.self, capacity: Int(MQ_Q_NAME_LENGTH)) { $0 }
+                for i in 0..<Int(MQ_Q_NAME_LENGTH) {
+                    bound[i] = replyToQueueChars[i]
+                }
+            }
+        }
+
+        // Initialize put message options
+        var putOptions = MQPMO()
+        putOptions.Version = MQPMO_VERSION_2
+        putOptions.Options = MQPMO_NO_SYNCPOINT | MQPMO_NEW_MSG_ID
+
+        // Prepare message data
+        var messageData = [UInt8](payload)
+        let messageLength = MQLONG(messageData.count)
+
+        // Call MQPUT to send the message
+        MQPUT(
+            connectionHandle,
+            objectHandle,
+            &messageDescriptor,
+            &putOptions,
+            messageLength,
+            &messageData,
+            &compCode,
+            &reason
+        )
+
+        guard compCode != MQCC_FAILED else {
+            throw MQError.operationFailed(
+                operation: "MQPUT(\(queueName))",
+                completionCode: compCode,
+                reasonCode: reason
+            )
+        }
+
+        // Extract and return the assigned message ID
+        var messageId = [UInt8](repeating: 0, count: Int(MQ_MSG_ID_LENGTH))
+        withUnsafePointer(to: messageDescriptor.MsgId) { ptr in
+            let bound = ptr.withMemoryRebound(to: UInt8.self, capacity: Int(MQ_MSG_ID_LENGTH)) { $0 }
+            for i in 0..<Int(MQ_MSG_ID_LENGTH) {
+                messageId[i] = bound[i]
+            }
+        }
+
+        return messageId
     }
 }
 

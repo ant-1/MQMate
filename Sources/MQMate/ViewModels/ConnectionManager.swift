@@ -623,4 +623,33 @@ public final class MockMQService: MQServiceProtocol {
         )
         return purgedCount
     }
+
+    public func sendMessage(
+        queueName: String,
+        payload: Data,
+        correlationId: [UInt8]?,
+        replyToQueue: String?,
+        messageType: MQService.MQMessageType,
+        persistence: MQService.MQMessagePersistence,
+        priority: Int32?
+    ) async throws -> [UInt8] {
+        // Simulate network delay
+        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+
+        guard isConnected else {
+            throw MQError.notConnected
+        }
+
+        // Check if queue exists
+        guard simulatedQueues.contains(where: { $0.name == queueName }) else {
+            throw MQError.operationFailed(operation: "MQPUT", completionCode: 2, reasonCode: 2085)
+        }
+
+        // Return a simulated message ID (24 bytes)
+        var messageId = [UInt8](repeating: 0, count: 24)
+        for i in 0..<24 {
+            messageId[i] = UInt8.random(in: 0...255)
+        }
+        return messageId
+    }
 }
