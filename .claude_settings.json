@@ -1,0 +1,39 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true
+  },
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Read(./**)",
+      "Write(./**)",
+      "Edit(./**)",
+      "Glob(./**)",
+      "Grep(./**)",
+      "Read(/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/**)",
+      "Write(/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/**)",
+      "Edit(/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/**)",
+      "Glob(/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/**)",
+      "Grep(/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/**)",
+      "Read(/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.auto-claude/specs/002-restart-from-scratch-the-project-with-the-followin/**)",
+      "Write(/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.auto-claude/specs/002-restart-from-scratch-the-project-with-the-followin/**)",
+      "Edit(/Users/antoine/Developer/MQMate/.auto-claude/worktrees/tasks/002-restart-from-scratch-the-project-with-the-followin/.auto-claude/specs/002-restart-from-scratch-the-project-with-the-followin/**)",
+      "Read(/Users/antoine/Developer/MQMate/.auto-claude/**)",
+      "Write(/Users/antoine/Developer/MQMate/.auto-claude/**)",
+      "Edit(/Users/antoine/Developer/MQMate/.auto-claude/**)",
+      "Glob(/Users/antoine/Developer/MQMate/.auto-claude/**)",
+      "Grep(/Users/antoine/Developer/MQMate/.auto-claude/**)",
+      "Bash(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "mcp__context7__resolve-library-id(*)",
+      "mcp__context7__get-library-docs(*)",
+      "mcp__graphiti-memory__search_nodes(*)",
+      "mcp__graphiti-memory__search_facts(*)",
+      "mcp__graphiti-memory__add_episode(*)",
+      "mcp__graphiti-memory__get_episodes(*)",
+      "mcp__graphiti-memory__get_entity_edge(*)"
+    ]
+  }
+}
