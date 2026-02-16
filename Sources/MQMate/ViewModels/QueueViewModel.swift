@@ -172,10 +172,10 @@ public final class QueueViewModel {
                     queueType: info.queueType,
                     depth: info.currentDepth,
                     maxDepth: info.maxDepth,
-                    openInputCount: info.openInputCount,
-                    openOutputCount: info.openOutputCount,
                     getInhibited: info.inhibitGet,
-                    putInhibited: info.inhibitPut
+                    putInhibited: info.inhibitPut,
+                    openInputCount: info.openInputCount,
+                    openOutputCount: info.openOutputCount
                 )
             }
 

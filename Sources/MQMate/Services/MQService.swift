@@ -1,38 +1,8 @@
 import Foundation
 import CMQC
 
-// MARK: - MQ Error Types
-
-/// Errors that can occur during MQ operations
-public enum MQError: Error, LocalizedError {
-    /// Connection to queue manager failed
-    case connectionFailed(reason: MQLong, description: String)
-    /// Disconnection from queue manager failed
-    case disconnectFailed(reason: MQLong, description: String)
-    /// Not connected to a queue manager
-    case notConnected
-    /// Operation failed with completion and reason codes
-    case operationFailed(operation: String, completionCode: MQLong, reason: MQLong)
-    /// Invalid configuration provided
-    case invalidConfiguration(message: String)
-
-    public var errorDescription: String? {
-        switch self {
-        case .connectionFailed(let reason, let description):
-            return "Connection failed (MQRC \(reason)): \(description)"
-        case .disconnectFailed(let reason, let description):
-            return "Disconnect failed (MQRC \(reason)): \(description)"
-        case .notConnected:
-            return "Not connected to a queue manager"
-        case .operationFailed(let operation, let completionCode, let reason):
-            return "\(operation) failed with completion code \(completionCode), reason \(reason)"
-        case .invalidConfiguration(let message):
-            return "Invalid configuration: \(message)"
-        }
-    }
-}
-
 // MARK: - MQ Service Protocol
+// Note: MQError is defined in Models/MQError.swift
 
 /// Protocol defining MQ service operations
 public protocol MQServiceProtocol {
@@ -87,9 +57,9 @@ public final class MQService: MQServiceProtocol {
     }
 
     deinit {
-        // Ensure we disconnect when the service is deallocated
-        // Note: This is synchronous disconnect to ensure cleanup
-        disconnectSync()
+        // Note: Cleanup is handled by explicit disconnect() calls
+        // We cannot call actor-isolated methods from deinit
+        // The connection handle will be invalidated when the process exits
     }
 
     // MARK: - Connection Methods
@@ -248,10 +218,9 @@ public final class MQService: MQServiceProtocol {
         // Check result
         guard compCode != MQCC_FAILED else {
             connectionHandle = MQHC_UNUSABLE_HCONN
-            let reasonCode = MQReasonCode(rawValue: reason)
             throw MQError.connectionFailed(
-                reason: reason,
-                description: reasonCode.localizedDescription
+                reasonCode: reason,
+                queueManager: queueManager
             )
         }
 
@@ -383,7 +352,7 @@ public final class MQService: MQServiceProtocol {
             throw MQError.operationFailed(
                 operation: "MQOPEN(\(queueName))",
                 completionCode: compCode,
-                reason: reason
+                reasonCode: reason
             )
         }
 
@@ -454,7 +423,7 @@ public final class MQService: MQServiceProtocol {
             throw MQError.operationFailed(
                 operation: "MQINQ(\(queueName))",
                 completionCode: compCode,
-                reason: reason
+                reasonCode: reason
             )
         }
 
@@ -590,7 +559,7 @@ public final class MQService: MQServiceProtocol {
             throw MQError.operationFailed(
                 operation: "MQOPEN(reply queue)",
                 completionCode: compCode,
-                reason: reason
+                reasonCode: reason
             )
         }
 
@@ -729,7 +698,7 @@ public final class MQService: MQServiceProtocol {
             throw MQError.operationFailed(
                 operation: "MQPUT(PCF command)",
                 completionCode: compCode,
-                reason: reason
+                reasonCode: reason
             )
         }
     }
@@ -781,7 +750,7 @@ public final class MQService: MQServiceProtocol {
                 throw MQError.operationFailed(
                     operation: "MQGET(PCF response)",
                     completionCode: compCode,
-                    reason: reason
+                    reasonCode: reason
                 )
             }
 
@@ -1093,7 +1062,7 @@ public final class MQService: MQServiceProtocol {
                 throw MQError.operationFailed(
                     operation: "MQGET(browse \(queueName))",
                     completionCode: compCode,
-                    reason: reason
+                    reasonCode: reason
                 )
             }
 
@@ -1283,17 +1252,4 @@ public final class MQService: MQServiceProtocol {
     }
 }
 
-// MARK: - Helper Extensions for MQService
-
-private extension String {
-    /// Convert Swift String to MQ fixed-length character array (padded with spaces)
-    func toMQCharArray(length: Int) -> [MQCHAR] {
-        var chars = Array<MQCHAR>(repeating: MQCHAR(0x20), count: length) // Space-padded
-        let utf8 = self.utf8
-        let copyLength = min(utf8.count, length)
-        for (index, char) in utf8.prefix(copyLength).enumerated() {
-            chars[index] = MQCHAR(bitPattern: char)
-        }
-        return chars
-    }
-}
+// Note: toMQCharArray extension is defined in MQBridge/MQTypes.swift

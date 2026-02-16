@@ -24,7 +24,7 @@ public final class ConnectionManager {
     public private(set) var isLoading: Bool = false
 
     /// Last error message for display
-    public private(set) var lastError: Error?
+    public var lastError: Error?
 
     /// Show error alert flag
     public var showErrorAlert: Bool = false
@@ -214,10 +214,10 @@ public final class ConnectionManager {
                 queueType: info.queueType,
                 depth: info.currentDepth,
                 maxDepth: info.maxDepth,
-                openInputCount: info.openInputCount,
-                openOutputCount: info.openOutputCount,
                 getInhibited: info.inhibitGet,
-                putInhibited: info.inhibitPut
+                putInhibited: info.inhibitPut,
+                openInputCount: info.openInputCount,
+                openOutputCount: info.openOutputCount
             )
         }
 
@@ -528,7 +528,7 @@ public final class MockMQService: MQServiceProtocol {
         try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
 
         if shouldFailConnect {
-            throw MQError.connectionFailed(reason: 2538, description: "Host not available")
+            throw MQError.connectionFailed(reasonCode: 2538, queueManager: "MockQM")
         }
 
         isConnected = true
@@ -542,7 +542,7 @@ public final class MockMQService: MQServiceProtocol {
         if let queue = simulatedQueues.first(where: { $0.name == queueName }) {
             return queue
         }
-        throw MQError.operationFailed(operation: "MQOPEN", completionCode: 2, reason: 2085)
+        throw MQError.operationFailed(operation: "MQOPEN", completionCode: 2, reasonCode: 2085)
     }
 
     public func listQueues(filter: String) async throws -> [MQService.QueueInfo] {

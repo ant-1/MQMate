@@ -32,6 +32,42 @@ struct ConnectionsView: View {
     // MARK: - Body
 
     var body: some View {
+        connectionListView
+            .listStyle(.sidebar)
+            .navigationTitle("Connections")
+            .toolbar {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    addConnectionButton
+                }
+            }
+            .sheet(isPresented: $showAddConnection) {
+                addConnectionSheet
+            }
+            .sheet(item: $connectionToEdit) { config in
+                editConnectionSheet(for: config)
+            }
+            .confirmationDialog(
+                "Delete Connection?",
+                isPresented: $showDeleteConfirmation,
+                titleVisibility: .visible,
+                presenting: connectionToDelete
+            ) { config in
+                deleteConfirmationButtons(for: config)
+            } message: { config in
+                Text("Are you sure you want to delete \"\(config.name)\"? This will remove the saved connection and its stored credentials.")
+            }
+            .overlay {
+                if connectionManager.savedConnections.isEmpty {
+                    emptyStateView
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .newConnectionRequested)) { _ in
+                showAddConnection = true
+            }
+    }
+
+    /// Connection list
+    private var connectionListView: some View {
         List(selection: $selection) {
             ForEach(connectionManager.savedConnections) { config in
                 ConnectionRowView(
@@ -45,71 +81,55 @@ struct ConnectionsView: View {
                 }
             }
         }
-        .listStyle(.sidebar)
-        .navigationTitle("Connections")
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                addConnectionButton
-            }
-        }
-        .sheet(isPresented: $showAddConnection) {
-            ConnectionFormView(
-                mode: .add,
-                onSave: { config, password in
-                    do {
-                        try connectionManager.addConnection(config, password: password)
-                        showAddConnection = false
-                        // Select the newly added connection
-                        selection = config.id
-                    } catch {
-                        connectionManager.lastError = error
-                        connectionManager.showErrorAlert = true
-                    }
-                },
-                onCancel: {
+    }
+
+    /// Add connection sheet content
+    private var addConnectionSheet: some View {
+        ConnectionFormView(
+            mode: .add,
+            onSave: { config, password in
+                do {
+                    try connectionManager.addConnection(config, password: password)
                     showAddConnection = false
+                    selection = config.id
+                } catch {
+                    connectionManager.lastError = error
+                    connectionManager.showErrorAlert = true
                 }
-            )
-        }
-        .sheet(item: $connectionToEdit) { config in
-            ConnectionFormView(
-                mode: .edit(config),
-                hasExistingPassword: connectionManager.hasPassword(for: config.id),
-                onSave: { updatedConfig, password in
-                    do {
-                        try connectionManager.updateConnection(updatedConfig, password: password)
-                        connectionToEdit = nil
-                    } catch {
-                        connectionManager.lastError = error
-                        connectionManager.showErrorAlert = true
-                    }
-                },
-                onCancel: {
+            },
+            onCancel: {
+                showAddConnection = false
+            }
+        )
+    }
+
+    /// Edit connection sheet content
+    private func editConnectionSheet(for config: ConnectionConfig) -> some View {
+        ConnectionFormView(
+            mode: .edit(config),
+            hasExistingPassword: connectionManager.hasPassword(for: config.id),
+            onSave: { updatedConfig, password in
+                do {
+                    try connectionManager.updateConnection(updatedConfig, password: password)
                     connectionToEdit = nil
+                } catch {
+                    connectionManager.lastError = error
+                    connectionManager.showErrorAlert = true
                 }
-            )
-        }
-        .confirmationDialog(
-            "Delete Connection?",
-            isPresented: $showDeleteConfirmation,
-            titleVisibility: .visible,
-            presenting: connectionToDelete
-        ) { config in
-            Button("Delete", role: .destructive) {
-                connectionManager.deleteConnection(id: config.id)
+            },
+            onCancel: {
+                connectionToEdit = nil
             }
-            Button("Cancel", role: .cancel) {}
-        } message: { config in
-            Text("Are you sure you want to delete \"\(config.name)\"? This will remove the saved connection and its stored credentials.")
+        )
+    }
+
+    /// Delete confirmation buttons
+    @ViewBuilder
+    private func deleteConfirmationButtons(for config: ConnectionConfig) -> some View {
+        Button("Delete", role: .destructive) {
+            connectionManager.deleteConnection(id: config.id)
         }
-        .overlay {
-            if connectionManager.savedConnections.isEmpty {
-                emptyStateView
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .newConnectionRequested)) { _ in
-            showAddConnection = true
-        }
+        Button("Cancel", role: .cancel) {}
     }
 
     // MARK: - Subviews

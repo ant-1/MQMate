@@ -4,6 +4,19 @@
 // Run: ./.build/debug/MQMate
 
 import PackageDescription
+import Foundation
+
+// Check if IBM MQ Client is installed
+let mqInstalled = FileManager.default.fileExists(atPath: "/opt/mqm/lib64/libmqic_r.dylib")
+
+// Build linker settings based on MQ availability
+var linkerSettings: [LinkerSetting] = []
+if mqInstalled {
+    linkerSettings = [
+        .unsafeFlags(["-L/opt/mqm/lib64"]),
+        .linkedLibrary("mqic_r")
+    ]
+}
 
 let package = Package(
     name: "MQMate",
@@ -30,10 +43,7 @@ let package = Package(
             name: "MQMate",
             dependencies: ["CMQC"],
             path: "Sources/MQMate",
-            linkerSettings: [
-                .unsafeFlags(["-L/opt/mqm/lib64"]),
-                .linkedLibrary("mqic_r")
-            ]
+            linkerSettings: linkerSettings
         ),
         // Test target
         .testTarget(
