@@ -33,6 +33,9 @@ public protocol MQServiceProtocol {
 
     /// Delete an existing queue from the connected queue manager
     func deleteQueue(queueName: String) async throws
+
+    /// Purge all messages from a queue using destructive MQGET
+    func purgeQueue(queueName: String) async throws -> Int
 }
 
 // MARK: - MQ Service Implementation
@@ -1775,6 +1778,107 @@ public final class MQService: MQServiceProtocol {
         // Parse the PCF response header to check for errors
         let responseData = Data(buffer.prefix(Int(dataLength)))
         try validatePCFResponse(data: responseData, operation: "Delete queue")
+    }
+
+    // MARK: - Queue Purge Operations
+
+    /// Purge all messages from a queue using destructive MQGET
+    /// This method reads and discards all messages in the queue
+    /// - Parameter queueName: Name of the queue to purge
+    /// - Returns: Number of messages purged
+    /// - Throws: MQError if purging fails
+    public func purgeQueue(queueName: String) async throws -> Int {
+        guard isConnected else {
+            throw MQError.notConnected
+        }
+
+        // Validate queue name
+        guard !queueName.isEmpty else {
+            throw MQError.invalidConfiguration(message: "Queue name cannot be empty")
+        }
+
+        // Open queue for destructive input
+        var objectHandle = try openQueue(
+            queueName: queueName,
+            options: MQOO_INPUT_SHARED | MQOO_FAIL_IF_QUIESCING
+        )
+
+        defer {
+            closeQueue(&objectHandle)
+        }
+
+        return try performPurgeQueue(objectHandle: objectHandle, queueName: queueName)
+    }
+
+    /// Perform the destructive MQGET loop to purge all messages
+    /// - Parameters:
+    ///   - objectHandle: Handle to the open queue
+    ///   - queueName: Name of the queue (for error messages)
+    /// - Returns: Number of messages purged
+    /// - Throws: MQError if purging fails
+    private func performPurgeQueue(objectHandle: MQHOBJ, queueName: String) throws -> Int {
+        var compCode: MQLONG = MQCC_OK
+        var reason: MQLONG = MQRC_NONE
+        var purgedCount = 0
+
+        // Small buffer - we don't need the actual message content
+        // We just need to destructively read each message
+        var buffer = [UInt8](repeating: 0, count: 1)
+
+        while true {
+            // Initialize message descriptor for each MQGET call
+            var messageDescriptor = MQMD()
+            messageDescriptor.Version = MQMD_VERSION_2
+
+            // Initialize get message options
+            var getOptions = MQGMO()
+            getOptions.Version = MQGMO_VERSION_2
+            // Use NO_SYNCPOINT for immediate removal, ACCEPT_TRUNCATED_MSG since we don't care about content
+            getOptions.Options = MQGMO_NO_SYNCPOINT | MQGMO_ACCEPT_TRUNCATED_MSG | MQGMO_FAIL_IF_QUIESCING
+            getOptions.WaitInterval = 0 // No wait - return immediately if no message
+            getOptions.MatchOptions = MQMO_NONE
+
+            var dataLength: MQLONG = 0
+
+            // Call MQGET to destructively read the message
+            MQGET(
+                connectionHandle,
+                objectHandle,
+                &messageDescriptor,
+                &getOptions,
+                MQLONG(buffer.count),
+                &buffer,
+                &dataLength,
+                &compCode,
+                &reason
+            )
+
+            // Check for no more messages
+            if reason == MQRC_NO_MSG_AVAILABLE {
+                break
+            }
+
+            // Handle truncation - this is expected since our buffer is minimal
+            if compCode == MQCC_WARNING && reason == MQRC_TRUNCATED_MSG_ACCEPTED {
+                // Message was successfully removed, just truncated in buffer
+                purgedCount += 1
+                continue
+            }
+
+            // Check for other errors
+            if compCode == MQCC_FAILED {
+                throw MQError.operationFailed(
+                    operation: "MQGET(purge \(queueName))",
+                    completionCode: compCode,
+                    reasonCode: reason
+                )
+            }
+
+            // Message successfully removed
+            purgedCount += 1
+        }
+
+        return purgedCount
     }
 }
 

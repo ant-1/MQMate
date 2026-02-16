@@ -456,4 +456,9 @@ private final class PreviewMQService: MQServiceProtocol {
     func deleteQueue(queueName: String) async throws {
         // Mock implementation - does nothing
     }
+
+    func purgeQueue(queueName: String) async throws -> Int {
+        // Mock implementation - return 0 messages purged
+        return 0
+    }
 }

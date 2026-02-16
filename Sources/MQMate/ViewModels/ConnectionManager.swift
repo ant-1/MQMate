@@ -595,4 +595,32 @@ public final class MockMQService: MQServiceProtocol {
         // Remove the queue
         simulatedQueues.remove(at: index)
     }
+
+    public func purgeQueue(queueName: String) async throws -> Int {
+        // Simulate network delay
+        try await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
+
+        guard isConnected else {
+            throw MQError.notConnected
+        }
+
+        // Check if queue exists and simulate purging
+        guard let index = simulatedQueues.firstIndex(where: { $0.name == queueName }) else {
+            throw MQError.operationFailed(operation: "Purge queue", completionCode: 2, reasonCode: 2085)
+        }
+
+        // Get current depth and reset to 0
+        let purgedCount = Int(simulatedQueues[index].currentDepth)
+        simulatedQueues[index] = MQService.QueueInfo(
+            name: simulatedQueues[index].name,
+            queueType: simulatedQueues[index].queueType,
+            currentDepth: 0,
+            maxDepth: simulatedQueues[index].maxDepth,
+            openInputCount: simulatedQueues[index].openInputCount,
+            openOutputCount: simulatedQueues[index].openOutputCount,
+            inhibitGet: simulatedQueues[index].inhibitGet,
+            inhibitPut: simulatedQueues[index].inhibitPut
+        )
+        return purgedCount
+    }
 }

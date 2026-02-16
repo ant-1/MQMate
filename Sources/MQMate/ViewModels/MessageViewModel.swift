@@ -555,6 +555,11 @@ private final class PreviewMessageMQService: MQServiceProtocol {
         // Mock implementation - does nothing
     }
 
+    func purgeQueue(queueName: String) async throws -> Int {
+        // Mock implementation - return 0 messages purged
+        return 0
+    }
+
     func browseMessages(queueName: String, maxMessages: Int) async throws -> [MQService.MQMessage] {
         // Return sample messages converted to MQService.MQMessage format
         return Message.samples.prefix(maxMessages).map { message in
