@@ -1,0 +1,49 @@
+# Auto Claude data directory
+.auto-claude/
+
+# Auto Claude generated files
+.auto-claude-security.json
+.auto-claude-allowlist
+.auto-claude-status
+.claude_settings.json
+.worktrees/
+.security-key
+logs/security/
+
+
+# ==========================================
+# Xcode
+# ==========================================
+build/
+DerivedData/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+xcuserdata/
+*.xccheckout
+*.xcuserstate
+*.xcscmblueprint
+# ==========================================
+# Swift Package Manager
+# ==========================================
+.build/
+.swiftpm/
+*.resolved
+# ==========================================
+# macOS
+# ==========================================
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+*.swp
+# ==========================================
+# Secrets / credentials
+# ==========================================
+*.pem
+*.key
+*.p12
+*.cer
+*.mobileprovision

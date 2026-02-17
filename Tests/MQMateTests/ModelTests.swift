@@ -203,9 +203,11 @@ final class ModelTests: XCTestCase {
         let queue = Queue(name: "Q1", depth: 42, maxDepth: 5000)
         let noMaxQueue = Queue(name: "Q2", depth: 100, maxDepth: 0)
 
-        // Then
+        // Then - check for digits, locale-independent (separator may vary)
         XCTAssertTrue(queue.depthDisplayString.contains("42"))
-        XCTAssertTrue(queue.depthDisplayString.contains("5,000") || queue.depthDisplayString.contains("5000"))
+        // Check for digits 5000 in any format (5,000 or 5 000 or 5.000 depending on locale)
+        let digitsOnly = queue.depthDisplayString.filter { $0.isNumber }
+        XCTAssertTrue(digitsOnly.contains("5000"), "Expected 5000 digits, got: \(queue.depthDisplayString)")
         XCTAssertTrue(noMaxQueue.depthDisplayString.contains("100"))
     }
 
@@ -213,8 +215,9 @@ final class ModelTests: XCTestCase {
         // Given
         let queue = Queue(name: "Q1", depth: 1234)
 
-        // Then
-        XCTAssertTrue(queue.depthShortString.contains("1,234") || queue.depthShortString.contains("1234"))
+        // Then - check for digits, locale-independent (separator may vary)
+        let digitsOnly = queue.depthShortString.filter { $0.isNumber }
+        XCTAssertEqual(digitsOnly, "1234", "Expected 1234 digits, got: \(queue.depthShortString)")
     }
 
     func testQueueStatusSummary() {
@@ -249,10 +252,11 @@ final class ModelTests: XCTestCase {
     // MARK: - Queue Protocol Conformance Tests
 
     func testQueueEquatable() {
-        // Given
-        let queue1 = Queue(name: "TEST.QUEUE", depth: 100)
-        let queue2 = Queue(name: "TEST.QUEUE", depth: 100)
-        let queue3 = Queue(name: "OTHER.QUEUE", depth: 100)
+        // Given - use explicit date to ensure equality
+        let fixedDate = Date(timeIntervalSince1970: 0)
+        let queue1 = Queue(name: "TEST.QUEUE", depth: 100, lastRefreshedAt: fixedDate)
+        let queue2 = Queue(name: "TEST.QUEUE", depth: 100, lastRefreshedAt: fixedDate)
+        let queue3 = Queue(name: "OTHER.QUEUE", depth: 100, lastRefreshedAt: fixedDate)
 
         // Then
         XCTAssertEqual(queue1, queue2)
@@ -260,9 +264,10 @@ final class ModelTests: XCTestCase {
     }
 
     func testQueueHashable() {
-        // Given
-        let queue1 = Queue(name: "TEST.QUEUE", depth: 100)
-        let queue2 = Queue(name: "TEST.QUEUE", depth: 100)
+        // Given - use explicit date to ensure equality
+        let fixedDate = Date(timeIntervalSince1970: 0)
+        let queue1 = Queue(name: "TEST.QUEUE", depth: 100, lastRefreshedAt: fixedDate)
+        let queue2 = Queue(name: "TEST.QUEUE", depth: 100, lastRefreshedAt: fixedDate)
 
         // When
         var set = Set<Queue>()
@@ -271,6 +276,7 @@ final class ModelTests: XCTestCase {
 
         // Then (both should hash to same value since they're equal)
         XCTAssertEqual(queue1.hashValue, queue2.hashValue)
+        XCTAssertEqual(set.count, 1, "Set should contain only one queue since both are equal")
     }
 
     func testQueueComparable() {
